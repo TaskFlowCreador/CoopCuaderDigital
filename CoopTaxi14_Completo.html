@@ -1,0 +1,1471 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#667eea">
+<title>CoopTaxi N°14 · Portoviejo</title>
+<link href="https://fonts.googleapis.com/css2?family=Indie+Flower&family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, setDoc, getDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyC152bnS9qB_BechoJ7l0TdbXQxvhgDBu4",
+  authDomain: "coop-taxi-portoviejo.firebaseapp.com",
+  projectId: "coop-taxi-portoviejo",
+  storageBucket: "coop-taxi-portoviejo.firebasestorage.app",
+  messagingSenderId: "56802886359",
+  appId: "1:56802886359:web:81d14eab7e9d4d9055a692"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+// ===================== SOCIOS INICIALES =====================
+const SOCIOS_INICIALES = [
+  {num:1,nombre:"BRIONES ALAVA WILLIAN AURELIO",cedula:"1313761999"},
+  {num:2,nombre:"ALCIVAR CRUZATTY GUIDO RICARDO",cedula:"1301420954"},
+  {num:3,nombre:"FLORES MORALES LIDER JOSE",cedula:"1311207235"},
+  {num:4,nombre:"ROBERT WILLIAN CEVALLOS CEDEÑO",cedula:"1304426180"},
+  {num:5,nombre:"ATAHUALPA ESCOBAR JUAN MANUEL",cedula:"1720742343"},
+  {num:6,nombre:"MOREJON GARIBALDI CARLOS ANTONIO",cedula:"1302026107"},
+  {num:7,nombre:"ZAMBRANO CEVALLOS NELSON DANIEL",cedula:"1311808693"},
+  {num:8,nombre:"VELEZ RODRIGUEZ JANDRY ALEXANDER",cedula:"1311197774"},
+  {num:9,nombre:"MIELES GONZALEZ JORGE EMILIO",cedula:"1301510937"},
+  {num:10,nombre:"TEJENA RIVAS YORDY ELIAS",cedula:"1314937986"},
+  {num:11,nombre:"SORNOZA ESPINOZA ORLANDO BLADIMIR",cedula:"1302281603"},
+  {num:12,nombre:"SANTANA CEDEÑO JORDY JAVIER",cedula:"1315716199"},
+  {num:13,nombre:"MOLINA ALAVA RENAN GONZALO",cedula:"1302484512"},
+  {num:14,nombre:"PARRAGA BARREIRO YORYI RODOLFO",cedula:"1307799898"},
+  {num:15,nombre:"CUENCA RIVERA RAMON ALEJANDRO",cedula:"1310423296"},
+  {num:16,nombre:"ANCHUNDIA PINARGOTE NEREYDA JACQUELINE",cedula:"1304891789"},
+  {num:17,nombre:"ROLDAN CATAGUA LUIYI WIGBERTO",cedula:"1304403478"},
+  {num:18,nombre:"GARCIA GARCIA DENNIS GEOVANNY",cedula:"1309460697"},
+  {num:19,nombre:"VERA LOOR DARWIN RAMON",cedula:"1307028538"},
+  {num:20,nombre:"MENDOZA MURILLO ANGEL DANIEL",cedula:"1308670916"},
+  {num:21,nombre:"MENDOZA VINCES ANGEL MANUEL",cedula:"1312743709"},
+  {num:22,nombre:"VERA ALAVA RUBEN RONALD",cedula:"1312217415"},
+  {num:23,nombre:"ARTEAGA QUIROZ SOCRATES ELIECER",cedula:"1306715770"},
+  {num:24,nombre:"BRIONES MOREIRA DIORGEN TOBIAS",cedula:"1305212589"},
+  {num:25,nombre:"ARTEAGA SALAZAR JONATHAN ABAD",cedula:"1311690133"},
+  {num:26,nombre:"MOLINA MOLINA JUNIOR ALEX",cedula:"1310296585"},
+  {num:27,nombre:"ZAMBRANO QUIROZ FRANCISCO FILIBERTO",cedula:"1302485204"},
+  {num:28,nombre:"AVEIGA CANTOS CARLOS ALBERTO",cedula:"1306772771"},
+  {num:29,nombre:"AVEIGA CANTOS JIMMY PATRICIO",cedula:"1307214351"},
+  {num:30,nombre:"GARCIA QUIJIJE KLEBER GEOVANNY",cedula:"1304851759"},
+  {num:31,nombre:"ANCHUNDIA MOREIRA ERASTO ASUNCION",cedula:"1302750565"},
+  {num:32,nombre:"LOOR NAVARRETE MARJORY BEATRIZ",cedula:"1310218464"},
+  {num:33,nombre:"ZAMBRANO PINARGOTE WILVER HERNAN",cedula:"1304696188"},
+  {num:34,nombre:"RODRIGUEZ FARFAN ROBERT ALEJANDRO",cedula:"1307095602"},
+  {num:35,nombre:"ZAMBRANO BASURTO LEOPOLDO FABIAN",cedula:"1309418299"},
+  {num:36,nombre:"LOPEZ CEDEÑO RUBEN DARIO",cedula:"1309685277"},
+  {num:37,nombre:"CEVALLOS MACIAS MONICA PILAR",cedula:"1311734170"},
+  {num:38,nombre:"MORALES ARTEAGA ALVARO MARCELO",cedula:"1311692782"},
+  {num:39,nombre:"BAZURTO VINCES OSCAR DARWIN",cedula:"1309091120"},
+  {num:40,nombre:"QUIMBIURCO TANDAYAMO GABRIEL JOSHUA",cedula:"1314738921"},
+  {num:41,nombre:"NAVARRETE BOZADA BRANLY DANILO",cedula:"1310933591"},
+  {num:42,nombre:"VILLAFUERTE GARCIA OSCAR DAVID",cedula:"1311496614"},
+  {num:43,nombre:"MERA GARCIA ALDO FABRICIO",cedula:"1306781004"},
+  {num:44,nombre:"SANCHEZ FLORES HUGO VINICIO",cedula:"1309180956"},
+  {num:45,nombre:"ZAMBRANO PINCAY OSCAR EFREN",cedula:"1305888701"},
+  {num:46,nombre:"SALVATIERRA VELEZ MILICES MOISES",cedula:"1312651621"},
+  {num:47,nombre:"PEREZ PARRAGA JUAN CARLOS",cedula:"1309328332"},
+  {num:48,nombre:"ZAMBRANO MENDOZA RODINSON LEONEL",cedula:"1310524697"},
+  {num:49,nombre:"GARCIA GARCIA HECTOR RAMON",cedula:"1312777830"},
+  {num:50,nombre:"VERA QUIJIJE JORGE PAUL",cedula:"1308019841"},
+  {num:51,nombre:"CHILA MERA LIMBER FABRICIO",cedula:"1309893426"},
+  {num:52,nombre:"QUIJIJE LOOR RODRIGO ANDRES",cedula:"1312548074"},
+  {num:53,nombre:"ROLDAN CATAGUA SADAT ADALBERTO",cedula:"1309497996"},
+  {num:54,nombre:"GARCIA VELEZ VICTOR HUGO",cedula:"1307263465"},
+  {num:55,nombre:"BRAVO ZAMBRANO JORGE LUIS",cedula:"1312237462"},
+  {num:56,nombre:"VALDIVIEZO CEDEÑO CESAR GREGORIO",cedula:"1312451402"},
+  {num:57,nombre:"SALDARRIAGA BRAVO STALIN BIENVENIDO",cedula:"1312721978"},
+  {num:58,nombre:"REYES REYES LUIS BOANERGES",cedula:"1311521197"},
+  {num:59,nombre:"MANRIQUE DELGADO ERWIN SANTO",cedula:"1304368937"},
+  {num:60,nombre:"DELGADO ZAMBRANO JORGE NARCIZO",cedula:"1303086688"},
+  {num:61,nombre:"ARAUZ FIGUEROA OSCAR JOEL",cedula:"1304489832"}
+];
+
+const MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+
+// ===================== STATE =====================
+let socios = [];
+let asistRegistros = [];
+let bitacora = [];
+let moduloActivo = 'admin'; // 'admin' | 'asistencia' | 'bitacora'
+let socioSeleccionado = null;
+let cuotasEditandoAsist = null;
+let deleteAsistId = null;
+let editandoAsistId = null;
+let montoAsist = 300;
+let filtroAsist = 'todos';
+
+// ===================== AUTH =====================
+onAuthStateChanged(auth, user => {
+  if (user) {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app-screen').style.display = 'flex';
+    document.getElementById('user-email').textContent = user.email;
+    inicializar();
+  } else {
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('app-screen').style.display = 'none';
+  }
+});
+
+window.loginUser = async function() {
+  const email = document.getElementById('login-email').value.trim();
+  const pass = document.getElementById('login-pass').value.trim();
+  const btn = document.getElementById('login-btn');
+  const err = document.getElementById('login-error');
+  if (!email || !pass) { err.textContent='Completa todos los campos'; err.style.display='block'; return; }
+  btn.textContent='Ingresando...'; btn.disabled=true; err.style.display='none';
+  try { await signInWithEmailAndPassword(auth, email, pass); }
+  catch(e) {
+    err.textContent = e.code==='auth/too-many-requests' ? 'Demasiados intentos. Espera.' : 'Correo o contraseña incorrectos';
+    err.style.display='block'; btn.textContent='🔐 Ingresar'; btn.disabled=false;
+  }
+};
+
+window.logoutUser = async function() {
+  if (!confirm('¿Cerrar sesión?')) return;
+  await signOut(auth);
+};
+
+// ===================== INIT =====================
+async function inicializar() {
+  showLoader(true);
+  await cargarSocios();
+  await cargarAsistencia();
+  await cargarBitacora();
+  renderDateBadge();
+  showLoader(false);
+  renderModuloAdmin();
+}
+
+// ===================== SOCIOS FIRESTORE =====================
+async function cargarSocios() {
+  const snap = await getDocs(collection(db, 'socios'));
+  if (snap.empty) {
+    // Inicializar socios
+    for (const s of SOCIOS_INICIALES) {
+      await setDoc(doc(db, 'socios', String(s.num)), {
+        num: s.num, nombre: s.nombre, cedula: s.cedula, pagos: {}
+      });
+    }
+    socios = SOCIOS_INICIALES.map(s => ({...s, pagos:{}, firebaseId: String(s.num)}));
+  } else {
+    socios = [];
+    snap.forEach(d => socios.push({...d.data(), firebaseId: d.id}));
+    socios.sort((a,b) => a.num - b.num);
+  }
+}
+
+async function guardarSocio(socio) {
+  await setDoc(doc(db, 'socios', String(socio.num)), {
+    num: socio.num, nombre: socio.nombre, cedula: socio.cedula, pagos: socio.pagos || {}
+  });
+}
+
+// ===================== UTILS FECHAS =====================
+function today() { return new Date().toISOString().split('T')[0]; }
+function formatDate(d) {
+  if (!d) return '—';
+  const [y,m,dd] = d.split('-');
+  return `${dd}/${m}/${y}`;
+}
+function diasEnMes(anio, mes) { // mes 1-12
+  return new Date(anio, mes, 0).getDate();
+}
+function ultimoDiaMes(anio, mes) { // mes 1-12
+  const d = diasEnMes(anio, mes);
+  return `${anio}-${String(mes).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+}
+function calcularMulta(anio, mes, fechaPago) {
+  // fechaPago: 'YYYY-MM-DD', mes: 1-12
+  const limite = new Date(ultimoDiaMes(anio, mes) + 'T23:59:59');
+  const pago = new Date(fechaPago + 'T12:00:00');
+  if (pago <= limite) return 0; // pagó a tiempo
+  // días de atraso: desde el 1 del mes siguiente hasta fecha de pago (sin contar día de pago)
+  const inicio = new Date(anio, mes, 1); // primer día del mes siguiente
+  const diasAtraso = Math.floor((pago - inicio) / 86400000); // sin contar día de pago
+  if (diasAtraso <= 0) return 0;
+  const tope = diasEnMes(anio, mes) === 28 ? 2.80 : diasEnMes(anio, mes) === 29 ? 2.90 : 3.00;
+  return Math.min(Math.round(diasAtraso * 0.10 * 100) / 100, tope);
+}
+function getMesActual() {
+  const n = new Date();
+  return { anio: n.getFullYear(), mes: n.getMonth() + 1 };
+}
+function estaAlDia(socio) {
+  const { anio, mes } = getMesActual();
+  // Debe tener pagado hasta el mes anterior
+  const mesReq = mes === 1 ? 12 : mes - 1;
+  const anioReq = mes === 1 ? anio - 1 : anio;
+  const key = `${anioReq}-${String(mesReq).padStart(2,'0')}`;
+  return socio.pagos && socio.pagos[key] && socio.pagos[key].pagado;
+}
+
+// ===================== MÓDULOS =====================
+window.setModulo = function(mod) {
+  moduloActivo = mod;
+  document.querySelectorAll('.modulo-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('mod-btn-' + mod).classList.add('active');
+  if (mod === 'admin') renderModuloAdmin();
+  else if (mod === 'asistencia') renderModuloAsistencia();
+  else if (mod === 'bitacora') renderModuloBitacora();
+};
+
+// ===================== MÓDULO ADMIN =====================
+function renderModuloAdmin() {
+  const cont = document.getElementById('main-content');
+  cont.innerHTML = `
+  <div class="glass-card" style="margin-bottom:14px;">
+    <div class="card-header">
+      <div class="card-title">🏠 Cuota Administrativa 2026</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-green btn-sm" onclick="exportarAdminExcel()">📊 Excel</button>
+      </div>
+    </div>
+    <div class="filter-bar">
+      <input type="text" class="search-input" id="searchSocio" placeholder="🔍 Buscar socio..." oninput="renderListaSocios()">
+      <button class="filter-chip active" onclick="setFiltroSocios('todos',this)" id="fchip-todos">Todos</button>
+      <button class="filter-chip" onclick="setFiltroSocios('aldia',this)" id="fchip-aldia">✅ Al día</button>
+      <button class="filter-chip" onclick="setFiltroSocios('atraso',this)" id="fchip-atraso">⚠️ Atraso</button>
+    </div>
+    <div id="lista-socios"></div>
+  </div>
+  <div class="glass-card">
+    <div class="card-title" style="margin-bottom:14px;">📊 Resumen General</div>
+    <div id="resumen-admin"></div>
+  </div>`;
+  renderListaSocios();
+  renderResumenAdmin();
+}
+
+let filtroSocios = 'todos';
+window.setFiltroSocios = function(f, btn) {
+  filtroSocios = f;
+  document.querySelectorAll('.filter-chip').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderListaSocios();
+};
+
+window.renderListaSocios = function() {
+  const search = (document.getElementById('searchSocio')?.value || '').toLowerCase();
+  let lista = [...socios];
+  if (search) lista = lista.filter(s => s.nombre.toLowerCase().includes(search) || String(s.num).includes(search) || s.cedula.includes(search));
+  if (filtroSocios === 'aldia') lista = lista.filter(s => estaAlDia(s));
+  if (filtroSocios === 'atraso') lista = lista.filter(s => !estaAlDia(s));
+
+  const cont = document.getElementById('lista-socios');
+  if (!cont) return;
+  if (lista.length === 0) { cont.innerHTML = `<div class="empty-state"><div class="empty-emoji">🔍</div><div class="empty-title">Sin resultados</div></div>`; return; }
+
+  cont.innerHTML = lista.map(s => {
+    const aldia = estaAlDia(s);
+    const pagos = s.pagos || {};
+    const mesesPagados = Object.values(pagos).filter(p => p.pagado).length;
+    const multaTotal = Object.values(pagos).reduce((sum, p) => sum + (p.multa || 0), 0);
+    return `
+    <div class="socio-row" onclick="abrirSocio(${s.num})">
+      <div class="socio-num">#${String(s.num).padStart(2,'0')}</div>
+      <div class="socio-info">
+        <div class="socio-nombre">${s.nombre}</div>
+        <div class="socio-cedula">CI: ${s.cedula}</div>
+      </div>
+      <div class="socio-stats">
+        <div class="socio-stat-item">${mesesPagados}/12 <span>meses</span></div>
+        ${multaTotal > 0 ? `<div class="socio-stat-item multa">$${multaTotal.toFixed(2)} <span>multas</span></div>` : ''}
+      </div>
+      <span class="status-chip ${aldia ? 'chip-verde' : 'chip-rojo'}">${aldia ? '✅ Al día' : '⚠️ Atraso'}</span>
+      <span class="arrow-icon">›</span>
+    </div>`;
+  }).join('');
+};
+
+function renderResumenAdmin() {
+  const cont = document.getElementById('resumen-admin');
+  if (!cont) return;
+  let totalCuotas = 0, cuotasPagadas = 0, multasCobradas = 0;
+  socios.forEach(s => {
+    const pagos = s.pagos || {};
+    Object.values(pagos).forEach(p => {
+      if (p.pagado) { cuotasPagadas++; totalCuotas += (p.monto || 25); }
+      if (p.multa && p.multa > 0) multasCobradas += p.multa;
+    });
+  });
+  const totalPosible = socios.length * 12 * 25;
+  const faltanCuotas = (socios.length * 12) - cuotasPagadas;
+  const dineroPorRecaudar = faltanCuotas * 25;
+
+  cont.innerHTML = `
+  <div class="stats-grid">
+    <div class="stat-card"><div class="stat-val green-val">${cuotasPagadas}</div><div class="stat-lbl">✅ Cuotas Pagadas</div></div>
+    <div class="stat-card"><div class="stat-val orange-val">${faltanCuotas}</div><div class="stat-lbl">⏳ Cuotas Faltantes</div></div>
+    <div class="stat-card"><div class="stat-val">$${totalCuotas.toFixed(0)}</div><div class="stat-lbl">💰 Recaudado</div></div>
+    <div class="stat-card"><div class="stat-val orange-val">$${dineroPorRecaudar.toFixed(0)}</div><div class="stat-lbl">⏳ Por Recaudar</div></div>
+    <div class="stat-card"><div class="stat-val red-val">$${multasCobradas.toFixed(2)}</div><div class="stat-lbl">🔴 Multas Cobradas</div></div>
+  </div>`;
+}
+
+// ===================== CARPETA SOCIO =====================
+window.abrirSocio = function(num) {
+  socioSeleccionado = num;
+  const socio = socios.find(s => s.num === num);
+  if (!socio) return;
+  renderCarpetaSocio(socio);
+};
+
+window.cerrarCarpeta = function() {
+  socioSeleccionado = null;
+  renderModuloAdmin();
+};
+
+function renderCarpetaSocio(socio) {
+  const cont = document.getElementById('main-content');
+  const pagos = socio.pagos || {};
+  const anioActual = new Date().getFullYear();
+  const years = new Set();
+  Object.keys(pagos).forEach(k => years.add(k.split('-')[0]));
+  years.add(String(anioActual));
+  const yearsArr = [...years].sort();
+
+  // Stats
+  const mesesPagados = Object.values(pagos).filter(p => p.pagado).length;
+  const multaTotal = Object.values(pagos).reduce((s,p) => s + (p.multa||0), 0);
+  const totalCuotas = Object.values(pagos).filter(p=>p.pagado).reduce((s,p) => s+(p.monto||25), 0);
+  const aldia = estaAlDia(socio);
+
+  cont.innerHTML = `
+  <div class="glass-card" style="margin-bottom:14px;">
+    <div class="card-header">
+      <button class="btn btn-ghost btn-sm" onclick="cerrarCarpeta()">← Volver</button>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-primary btn-sm" onclick="editarSocio(${socio.num})">✏️ Editar</button>
+        <button class="btn btn-green btn-sm" onclick="exportarSocioExcel(${socio.num})">📊 Excel</button>
+      </div>
+    </div>
+
+    <!-- Info socio -->
+    <div class="socio-card-header">
+      <div class="socio-avatar">#${String(socio.num).padStart(2,'0')}</div>
+      <div>
+        <div class="socio-card-nombre">${socio.nombre}</div>
+        <div class="socio-card-cedula">🪪 ${socio.cedula}</div>
+        <span class="status-chip ${aldia ? 'chip-verde' : 'chip-rojo'}" style="margin-top:6px;display:inline-flex;">${aldia ? '✅ Al día' : '⚠️ Con atraso'}</span>
+      </div>
+    </div>
+
+    <!-- Stats socio -->
+    <div class="stats-grid" style="margin-top:14px;">
+      <div class="stat-card"><div class="stat-val green-val">${mesesPagados}</div><div class="stat-lbl">Meses Pagados</div></div>
+      <div class="stat-card"><div class="stat-val">$${totalCuotas.toFixed(0)}</div><div class="stat-lbl">💰 Recaudado</div></div>
+      <div class="stat-card"><div class="stat-val red-val">$${multaTotal.toFixed(2)}</div><div class="stat-lbl">🔴 Multas</div></div>
+    </div>
+  </div>
+
+  <!-- Años tabs -->
+  <div class="years-nav">
+    ${yearsArr.map(y => `<button class="year-btn ${y===String(anioActual)?'active':''}" onclick="setAnioSocio('${y}',this)">${y}</button>`).join('')}
+    <button class="year-btn" onclick="nuevoAnioSocio()">+ Año</button>
+  </div>
+
+  <div id="carpeta-meses" class="glass-card"></div>
+  `;
+
+  renderMesesSocio(socio, anioActual);
+}
+
+window.setAnioSocio = function(anio, btn) {
+  document.querySelectorAll('.year-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const socio = socios.find(s => s.num === socioSeleccionado);
+  renderMesesSocio(socio, parseInt(anio));
+};
+
+window.nuevoAnioSocio = function() {
+  const anio = prompt('Ingresa el año a agregar (ej: 2027):');
+  if (!anio || isNaN(anio)) return;
+  const socio = socios.find(s => s.num === socioSeleccionado);
+  renderCarpetaSocio(socio);
+  setTimeout(() => {
+    const nav = document.querySelector('.years-nav');
+    const btns = nav.querySelectorAll('.year-btn');
+    btns.forEach(b => { if(b.textContent === anio) { b.classList.add('active'); setAnioSocio(anio, b); } });
+  }, 100);
+};
+
+function renderMesesSocio(socio, anio) {
+  const cont = document.getElementById('carpeta-meses');
+  if (!cont) return;
+  const pagos = socio.pagos || {};
+
+  cont.innerHTML = `
+  <div class="card-title" style="margin-bottom:16px;">📅 Registro ${anio}</div>
+  <div class="meses-grid">
+    ${MESES.map((mes, idx) => {
+      const mesNum = idx + 1;
+      const key = `${anio}-${String(mesNum).padStart(2,'0')}`;
+      const pago = pagos[key];
+      const limite = ultimoDiaMes(anio, mesNum);
+      const hoy = today();
+      const vencido = hoy > limite && !pago?.pagado;
+
+      let estadoClass = 'mes-pendiente';
+      let estadoLabel = '⏳ Pendiente';
+      if (pago?.pagado) { estadoClass = 'mes-pagado'; estadoLabel = '✅ Pagado'; }
+      else if (vencido) { estadoClass = 'mes-vencido'; estadoLabel = '🔴 Vencido'; }
+
+      return `
+      <div class="mes-card ${estadoClass}" onclick="abrirPagoMes(${socio.num}, ${anio}, ${mesNum})">
+        <div class="mes-nombre">${mes}</div>
+        <div class="mes-estado">${estadoLabel}</div>
+        ${pago?.pagado ? `
+          <div class="mes-detalle">
+            <div>💰 $${pago.monto || 25}</div>
+            <div>📅 ${formatDate(pago.fechaPago)}</div>
+            ${pago.multa > 0 ? `<div class="mes-multa">🔴 Multa: $${pago.multa.toFixed(2)}</div>` : '<div class="mes-aldia">✅ Sin multa</div>'}
+            ${pago.cuenta ? `<div class="mes-cuenta">🏦 ${pago.cuenta}</div>` : ''}
+            ${pago.novedad ? `<div class="mes-novedad">📝 ${pago.novedad}</div>` : ''}
+          </div>` : `
+          <div class="mes-limite">Límite: ${formatDate(limite)}</div>
+          ${vencido ? `<div class="mes-multa-est">Multa estimada hoy: $${calcularMultaHoy(anio, mesNum)}</div>` : ''}`}
+        <div class="mes-action-hint">Toca para ${pago?.pagado ? 'editar' : 'registrar'}</div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function calcularMultaHoy(anio, mes) {
+  return calcularMulta(anio, mes, today()).toFixed(2);
+}
+
+// ===================== MODAL PAGO MES =====================
+window.abrirPagoMes = function(numSocio, anio, mes) {
+  const socio = socios.find(s => s.num === numSocio);
+  if (!socio) return;
+  const key = `${anio}-${String(mes).padStart(2,'0')}`;
+  const pago = (socio.pagos || {})[key] || {};
+  const limite = ultimoDiaMes(anio, mes);
+
+  document.getElementById('modal-pago-title').textContent = `💳 ${MESES[mes-1]} ${anio} — #${String(numSocio).padStart(2,'0')}`;
+  document.getElementById('modal-pago-socio').textContent = socio.nombre;
+
+  const fechaInput = pago.fechaPago || today();
+  const multaCalc = calcularMulta(anio, mes, fechaInput);
+
+  document.getElementById('modal-pago-body').innerHTML = `
+  <input type="hidden" id="pago-num-socio" value="${numSocio}">
+  <input type="hidden" id="pago-anio" value="${anio}">
+  <input type="hidden" id="pago-mes" value="${mes}">
+
+  <div class="info-box info-box-blue" style="margin-bottom:12px;">
+    <span>📅</span><div>Límite de pago: <strong>${formatDate(limite)}</strong></div>
+  </div>
+
+  <div class="field-group">
+    <label class="field-label">💰 Monto Cuota ($)</label>
+    <input type="number" class="field-input" id="pago-monto" value="${pago.monto || 25}" step="0.01" min="0">
+    <div style="font-size:0.7rem;color:var(--empty-text);margin-top:4px;font-weight:700;">Editable en caso de pago parcial o incorrecto</div>
+  </div>
+
+  <div class="field-group">
+    <label class="field-label">📅 Fecha Real de Pago</label>
+    <input type="date" class="field-input" id="pago-fecha" value="${fechaInput}" onchange="actualizarMultaCalc(${anio},${mes})">
+  </div>
+
+  <div class="info-box" id="multa-box" style="margin-bottom:10px; ${multaCalc > 0 ? 'background:rgba(220,38,38,0.08);border:1px solid rgba(220,38,38,0.25);color:var(--red);' : 'background:rgba(5,150,105,0.08);border:1px solid rgba(5,150,105,0.25);color:var(--green);'}">
+    <span>${multaCalc > 0 ? '🔴' : '✅'}</span>
+    <div id="multa-texto">
+      ${multaCalc > 0 ? `Multa por atraso: <strong>$${multaCalc.toFixed(2)}</strong>` : 'Sin multa — pagó a tiempo'}
+    </div>
+  </div>
+
+  <div class="field-group">
+    <label class="field-label">🏦 Cuenta de Depósito</label>
+    <input type="text" class="field-input" id="pago-cuenta" value="${pago.cuenta || ''}" placeholder="Ej: Cuenta Cooperativa, Banco Pichincha...">
+  </div>
+
+  <div class="field-group">
+    <label class="field-label">📝 Novedades del Pago</label>
+    <input type="text" class="field-input" id="pago-novedad" value="${pago.novedad || ''}" placeholder="Pago incorrecto, observación...">
+  </div>
+
+  <div class="field-group" style="display:flex;align-items:center;gap:10px;">
+    <input type="checkbox" id="pago-pagado" ${pago.pagado ? 'checked' : ''} style="width:20px;height:20px;accent-color:var(--accent-color);">
+    <label for="pago-pagado" style="font-weight:800;cursor:pointer;">Marcar como PAGADO</label>
+  </div>
+
+  ${pago.pagado ? `<div class="info-box info-box-green"><span>✅</span><div>Este mes ya está registrado como pagado.</div></div>` : ''}
+  `;
+
+  document.getElementById('modal-pago').classList.add('open');
+};
+
+window.actualizarMultaCalc = function(anio, mes) {
+  const fecha = document.getElementById('pago-fecha')?.value;
+  if (!fecha) return;
+  const multa = calcularMulta(anio, mes, fecha);
+  const box = document.getElementById('multa-box');
+  const txt = document.getElementById('multa-texto');
+  if (multa > 0) {
+    box.style.cssText = 'background:rgba(220,38,38,0.08);border:1px solid rgba(220,38,38,0.25);color:var(--red);margin-bottom:10px;';
+    txt.innerHTML = `Multa por atraso: <strong>$${multa.toFixed(2)}</strong>`;
+  } else {
+    box.style.cssText = 'background:rgba(5,150,105,0.08);border:1px solid rgba(5,150,105,0.25);color:var(--green);margin-bottom:10px;';
+    txt.innerHTML = 'Sin multa — pagó a tiempo';
+  }
+};
+
+window.guardarPagoMes = async function() {
+  const numSocio = parseInt(document.getElementById('pago-num-socio').value);
+  const anio = parseInt(document.getElementById('pago-anio').value);
+  const mes = parseInt(document.getElementById('pago-mes').value);
+  const monto = parseFloat(document.getElementById('pago-monto').value) || 25;
+  const fecha = document.getElementById('pago-fecha').value;
+  const cuenta = document.getElementById('pago-cuenta').value.trim();
+  const novedad = document.getElementById('pago-novedad').value.trim();
+  const pagado = document.getElementById('pago-pagado').checked;
+
+  if (!fecha) { showToast('Ingresa la fecha de pago', '⚠️'); return; }
+
+  const multa = pagado ? calcularMulta(anio, mes, fecha) : 0;
+  const key = `${anio}-${String(mes).padStart(2,'0')}`;
+
+  const socio = socios.find(s => s.num === numSocio);
+  if (!socio) return;
+  if (!socio.pagos) socio.pagos = {};
+  socio.pagos[key] = { pagado, monto, fechaPago: pagado ? fecha : null, multa, cuenta, novedad };
+
+  try {
+    await guardarSocio(socio);
+    cerrarModalPago();
+    if (pagado) confetti({ particleCount: 60, spread: 50, origin:{y:0.7}, colors:['#667eea','#059669','#764ba2'] });
+    showToast(`${MESES[mes-1]} ${anio} guardado`, '✅');
+    renderCarpetaSocio(socio);
+  } catch(e) { showToast('Error: ' + e.message, '❌'); }
+};
+
+window.cerrarModalPago = function() {
+  document.getElementById('modal-pago').classList.remove('open');
+};
+
+// ===================== EDITAR SOCIO =====================
+window.editarSocio = function(num) {
+  const socio = socios.find(s => s.num === num);
+  if (!socio) return;
+  document.getElementById('edit-socio-num').textContent = `#${String(num).padStart(2,'0')}`;
+  document.getElementById('edit-nombre').value = socio.nombre;
+  document.getElementById('edit-cedula').value = socio.cedula;
+  document.getElementById('edit-socio-id').value = num;
+  document.getElementById('modal-edit-socio').classList.add('open');
+};
+
+window.guardarEditSocio = async function() {
+  const num = parseInt(document.getElementById('edit-socio-id').value);
+  const nombre = document.getElementById('edit-nombre').value.trim().toUpperCase();
+  const cedula = document.getElementById('edit-cedula').value.trim();
+  if (!nombre || !cedula) { showToast('Completa todos los campos', '⚠️'); return; }
+  const socio = socios.find(s => s.num === num);
+  if (!socio) return;
+  socio.nombre = nombre; socio.cedula = cedula;
+  try {
+    await guardarSocio(socio);
+    cerrarModalEditSocio();
+    showToast('Socio actualizado', '✅');
+    renderCarpetaSocio(socio);
+  } catch(e) { showToast('Error: ' + e.message, '❌'); }
+};
+
+window.cerrarModalEditSocio = function() {
+  document.getElementById('modal-edit-socio').classList.remove('open');
+};
+
+// ===================== MÓDULO ASISTENCIA SOCIAL =====================
+async function cargarAsistencia() {
+  try {
+    const snap = await getDocs(collection(db, 'registros'));
+    asistRegistros = [];
+    snap.forEach(d => asistRegistros.push({...d.data(), firebaseId: d.id}));
+    asistRegistros.sort((a,b) => a.numSocio - b.numSocio);
+  } catch(e) { console.error(e); }
+}
+
+function renderModuloAsistencia() {
+  const cont = document.getElementById('main-content');
+  cont.innerHTML = `
+  <div class="tabs-nav-inner">
+    <button class="tab-btn active" onclick="asistTab('nuevo')" id="atab-nuevo">✏️ Nuevo</button>
+    <button class="tab-btn" onclick="asistTab('registros')" id="atab-registros">📋 Registros <span class="tab-badge" id="abadge-reg">${asistRegistros.length}</span></button>
+    <button class="tab-btn" onclick="asistTab('dashboard')" id="atab-dashboard">📊 Resumen</button>
+  </div>
+  <div id="asist-content"></div>`;
+  asistTab('nuevo');
+}
+
+window.asistTab = function(id) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('atab-'+id);
+  if (btn) btn.classList.add('active');
+  const cont = document.getElementById('asist-content');
+  if (id === 'nuevo') renderAsistNuevo(cont);
+  else if (id === 'registros') renderAsistRegistros(cont);
+  else if (id === 'dashboard') renderAsistDashboard(cont);
+};
+
+function renderAsistNuevo(cont) {
+  cont.innerHTML = `
+  <div class="glass-card">
+    <div class="card-header"><div class="card-title">✏️ Nueva Asistencia Social</div></div>
+    <div class="field-group">
+      <label class="field-label">💰 Monto</label>
+      <div class="monto-options">
+        <div class="monto-opt selected" onclick="selAsistMonto(300,this)"><div class="monto-value">$300</div><div class="monto-label">Máximo</div><div class="monto-total">Total: $330</div></div>
+        <div class="monto-opt" onclick="selAsistMonto(200,this)"><div class="monto-value">$200</div><div class="monto-label">Menor</div><div class="monto-total">Total: $220</div></div>
+      </div>
+    </div>
+    <div class="grid-3">
+      <div class="field-group"><label class="field-label">🔢 N° Socio</label><input type="number" class="field-input" id="a-numSocio" placeholder="1-61" min="1" max="61"></div>
+      <div class="field-group" style="grid-column:span 2"><label class="field-label">👤 Nombre</label><input type="text" class="field-input" id="a-nombre" placeholder="Nombre completo"></div>
+    </div>
+    <div class="field-group"><label class="field-label">🪪 Cédula</label><input type="text" class="field-input" id="a-cedula" placeholder="1234567890" maxlength="10"></div>
+    <div class="grid-2">
+      <div class="field-group"><label class="field-label">📅 Fecha Retiro</label><input type="date" class="field-input" id="a-fechaRetiro" value="${today()}" onchange="calcAsistFechas()"></div>
+      <div class="field-group"><label class="field-label">⏰ 1ª Cuota Máx.</label><input type="date" class="field-input" id="a-fechaLimite" readonly style="opacity:0.7;"></div>
+    </div>
+    <div id="a-info-fechas" class="info-box info-box-blue" style="display:none;"><span>📌</span><div id="a-info-text"></div></div>
+    <div class="field-group" style="margin-top:10px;"><label class="field-label">📝 Observaciones</label><input type="text" class="field-input" id="a-obs" placeholder="Notas..."></div>
+    <button class="btn btn-primary btn-full" style="margin-top:10px;" onclick="guardarAsistencia()">💾 Guardar</button>
+  </div>
+  <div class="info-box info-box-blue"><span>📌</span><div>30 días + 5 de gracia = 35 días máx. · 6 cuotas de <strong>$55</strong> ($300) o <strong>~$36.67</strong> ($200)</div></div>`;
+  calcAsistFechas();
+}
+
+window.selAsistMonto = function(m, el) {
+  document.querySelectorAll('.monto-opt').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected'); montoAsist = m; calcAsistFechas();
+};
+
+window.calcAsistFechas = function() {
+  const retiro = document.getElementById('a-fechaRetiro')?.value;
+  if (!retiro) return;
+  const limite = addDaysStr(retiro, 35);
+  const lEl = document.getElementById('a-fechaLimite');
+  if (lEl) lEl.value = limite;
+  const box = document.getElementById('a-info-fechas');
+  if (box) { box.style.display='flex'; document.getElementById('a-info-text').innerHTML=`Retiro: <strong>${formatDate(retiro)}</strong> → 1ª cuota máx: <strong>${formatDate(limite)}</strong>`; }
+};
+
+function addDaysStr(dateStr, days) {
+  const d = new Date(dateStr + 'T12:00:00');
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split('T')[0];
+}
+
+window.guardarAsistencia = async function() {
+  const numSocio = document.getElementById('a-numSocio')?.value?.trim();
+  const nombre = document.getElementById('a-nombre')?.value?.trim();
+  const cedula = document.getElementById('a-cedula')?.value?.trim();
+  const fechaRetiro = document.getElementById('a-fechaRetiro')?.value;
+  if (!numSocio || !nombre || !cedula || !fechaRetiro) { showToast('Completa todos los campos', '⚠️'); return; }
+  const cuotas = [];
+  for (let i=1; i<=6; i++) {
+    const fb = addDaysStr(fechaRetiro, i*30);
+    const fl = addDaysStr(fb, 5);
+    cuotas.push({ num:i, monto: montoAsist===300?55:Math.round(220/6*100)/100, fechaBase:fb, fechaLimite:fl, pagada:false, fechaPago:null });
+  }
+  const reg = { numSocio:parseInt(numSocio), nombre, cedula, monto:montoAsist, totalPagar:montoAsist===300?330:220, fechaRetiro, fechaLimite:addDaysStr(fechaRetiro,35), obs:document.getElementById('a-obs')?.value?.trim()||'', cuotas, fechaCreacion:today() };
+  try {
+    await addDoc(collection(db,'registros'), reg);
+    await cargarAsistencia();
+    confetti({particleCount:60,spread:50,origin:{y:0.7}});
+    showToast(`Asistencia de ${nombre} guardada`,'✅');
+    asistTab('registros');
+  } catch(e) { showToast('Error: '+e.message,'❌'); }
+};
+
+function getEstadoCuota(c) {
+  const h = today();
+  if (c.pagada) return 'pagada';
+  if (h > c.fechaLimite) return 'atrasada';
+  if (daysBetween(h, c.fechaLimite) <= 7) return 'pendiente-hoy';
+  return 'pendiente';
+}
+function daysBetween(d1,d2) { return Math.round((new Date(d2+'T12:00:00')-new Date(d1+'T12:00:00'))/86400000); }
+function getEstadoAsist(reg) {
+  if (!reg.cuotas||!reg.cuotas.length) return 'al-dia';
+  if (reg.cuotas.every(c=>c.pagada)) return 'pagado';
+  const h=today();
+  if (reg.cuotas.some(c=>!c.pagada&&h>c.fechaLimite)) return 'vencido';
+  if (reg.cuotas.some(c=>!c.pagada&&daysBetween(h,c.fechaLimite)<=7)) return 'proximo';
+  return 'al-dia';
+}
+
+function renderAsistRegistros(cont) {
+  const search = '';
+  let lista = [...asistRegistros].sort((a,b)=>a.numSocio-b.numSocio);
+  if (filtroAsist !== 'todos') lista = lista.filter(r => getEstadoAsist(r) === filtroAsist);
+
+  cont.innerHTML = `
+  <div class="glass-card">
+    <div class="card-header"><div class="card-title">📋 Asistencias Activas</div><button class="btn btn-green btn-sm" onclick="exportarAsistExcel()">📊 Excel</button></div>
+    <div class="filter-bar">
+      <input type="text" class="search-input" placeholder="🔍 Buscar..." oninput="filtrarAsist(this.value)" id="asist-search">
+      <button class="filter-chip active" onclick="setFiltroAsist('todos',this)">Todos</button>
+      <button class="filter-chip" onclick="setFiltroAsist('al-dia',this)">✅ Al día</button>
+      <button class="filter-chip" onclick="setFiltroAsist('proximo',this)">⚠️ Próximos</button>
+      <button class="filter-chip" onclick="setFiltroAsist('vencido',this)">🔴 Vencidos</button>
+      <button class="filter-chip" onclick="setFiltroAsist('pagado',this)">💚 Completados</button>
+    </div>
+    <div id="asist-lista">
+      ${lista.length===0 ? '<div class="empty-state"><div class="empty-emoji">📭</div><div class="empty-title">Sin registros</div></div>' :
+        lista.map(r => renderAsistCard(r)).join('')}
+    </div>
+  </div>`;
+}
+
+window.setFiltroAsist = function(f, btn) {
+  filtroAsist = f;
+  document.querySelectorAll('.filter-chip').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  const lista = document.getElementById('asist-lista');
+  if (!lista) return;
+  let l = [...asistRegistros].sort((a,b)=>a.numSocio-b.numSocio);
+  if (f!=='todos') l=l.filter(r=>getEstadoAsist(r)===f);
+  lista.innerHTML = l.length===0?'<div class="empty-state"><div class="empty-emoji">🔍</div><div class="empty-title">Sin resultados</div></div>':l.map(r=>renderAsistCard(r)).join('');
+};
+
+window.filtrarAsist = function(q) {
+  const lista = document.getElementById('asist-lista');
+  if (!lista) return;
+  const search = q.toLowerCase();
+  let l = [...asistRegistros].filter(r=>r.nombre.toLowerCase().includes(search)||String(r.numSocio).includes(search)||r.cedula.includes(search)).sort((a,b)=>a.numSocio-b.numSocio);
+  if (filtroAsist!=='todos') l=l.filter(r=>getEstadoAsist(r)===filtroAsist);
+  lista.innerHTML = l.length===0?'<div class="empty-state"><div class="empty-emoji">🔍</div><div class="empty-title">Sin resultados</div></div>':l.map(r=>renderAsistCard(r)).join('');
+};
+
+function renderAsistCard(r) {
+  const estado = getEstadoAsist(r);
+  const pagadas = r.cuotas.filter(c=>c.pagada).length;
+  const totalPag = r.cuotas.filter(c=>c.pagada).reduce((s,c)=>s+c.monto,0);
+  const pct = Math.round(totalPag/r.totalPagar*100);
+  const chipMap = { 'al-dia':'chip-verde','proximo':'chip-naranja','vencido':'chip-rojo','pagado':'chip-dorado' };
+  const labelMap = { 'al-dia':'✅ Al día','proximo':'⚠️ Por vencer','vencido':'🔴 Vencido','pagado':'💚 Completado' };
+  const dots = r.cuotas.map(c => `<div class="cuota-dot ${getEstadoCuota(c)}" title="C${c.num}: ${formatDate(c.fechaLimite)}${c.pagada?' ✓':''}"></div>`).join('');
+  const pagosHtml = r.cuotas.filter(c=>c.pagada).map(c=>`<div class="cuota-pago-item"><span class="cuota-num-mini">${c.num}</span><span>Cuota ${c.num}</span><span class="cuota-fecha-pago">📅 ${formatDate(c.fechaPago)}</span><span class="cuota-monto-mini">$${c.monto}</span></div>`).join('');
+
+  return `
+  <div class="reg-card ${estado}" style="margin-bottom:12px;">
+    <div class="reg-top">
+      <div><div class="reg-socio-num">#${String(r.numSocio).padStart(2,'0')}</div><div class="reg-socio-name">${r.nombre}</div><div class="reg-cedula">CI: ${r.cedula}</div></div>
+      <div class="reg-right"><div class="reg-monto">$${r.totalPagar}</div><div class="reg-cuota">${pagadas}/6 · $${r.cuotas[0]?.monto}/mes</div><div class="reg-pagado-label">Pagado: <strong>$${totalPag.toFixed(0)}</strong></div></div>
+    </div>
+    <div class="progress-wrap"><div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div><div class="progress-label">${pct}% · $${totalPag.toFixed(0)} de $${r.totalPagar}</div></div>
+    <div class="cuotas-track">${dots}</div>
+    ${pagadas>0?`<div class="pagos-registrados"><div class="pagos-title">💳 Pagos registrados:</div>${pagosHtml}</div>`:''}
+    <div class="reg-dates">
+      <div class="reg-date-item"><div class="reg-date-label">📅 Retiro</div><div class="reg-date-value">${formatDate(r.fechaRetiro)}</div></div>
+      <div class="reg-date-item"><div class="reg-date-label">⏰ 1ª Cuota Máx.</div><div class="reg-date-value">${formatDate(r.fechaLimite)}</div></div>
+    </div>
+    <div class="reg-status-bar">
+      <span class="status-chip ${chipMap[estado]}">${labelMap[estado]}</span>
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn-primary btn-sm" onclick="abrirAsistCuotas('${r.firebaseId}')">💳 Cuotas</button>
+        <button class="btn btn-red btn-sm" onclick="eliminarAsist('${r.firebaseId}')">🗑️</button>
+      </div>
+    </div>
+    ${r.obs?`<div class="reg-obs">📝 ${r.obs}</div>`:''}
+  </div>`;
+}
+
+window.abrirAsistCuotas = function(fid) {
+  cuotasEditandoAsist = fid;
+  const reg = asistRegistros.find(r=>r.firebaseId===fid);
+  if (!reg) return;
+  document.getElementById('modal-asist-cuotas-title').textContent = `💳 ${reg.nombre}`;
+  const totalPag = reg.cuotas.filter(c=>c.pagada).reduce((s,c)=>s+c.monto,0);
+  document.getElementById('modal-asist-cuotas-body').innerHTML = `
+    <div class="info-box info-box-green" style="margin-bottom:12px;"><span>💰</span><div>Pagado: <strong>$${totalPag.toFixed(2)}</strong> de <strong>$${reg.totalPagar}</strong></div></div>
+    <div class="cuotas-list">
+      ${reg.cuotas.map((c,i) => {
+        const est = getEstadoCuota(c);
+        const cl = {pagada:'chip-verde',atrasada:'chip-rojo','pendiente-hoy':'chip-naranja',pendiente:'chip-gris'}[est];
+        const lb = {pagada:'✅ Pagada',atrasada:'🔴 Atrasada','pendiente-hoy':'⚠️ Por vencer',pendiente:'⏳ Pendiente'}[est];
+        return `<div class="cuota-item ${c.pagada?'cuota-pagada':''}">
+          <div class="cuota-num">${c.num}</div>
+          <div class="cuota-info">
+            <div class="cuota-fecha">Límite: ${formatDate(c.fechaLimite)}</div>
+            <span class="status-chip ${cl}" style="font-size:0.65rem;margin-top:3px;">${lb}</span>
+            ${c.pagada?`<div class="cuota-fecha-real">📅 Pagada el: <strong>${formatDate(c.fechaPago)}</strong></div>`:`<div style="margin-top:6px;"><label class="field-label">Fecha de pago</label><input type="date" class="field-input" id="afp-${i}" style="padding:6px 10px;font-size:0.8rem;" value="${today()}"></div>`}
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+            <div class="cuota-monto">$${c.monto}</div>
+            <input type="checkbox" id="achk-${i}" ${c.pagada?'checked':''} style="width:22px;height:22px;cursor:pointer;accent-color:var(--accent-color);">
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  document.getElementById('modal-asist-cuotas').classList.add('open');
+};
+
+window.guardarAsistCuotas = async function() {
+  const reg = asistRegistros.find(r=>r.firebaseId===cuotasEditandoAsist);
+  if (!reg) return;
+  reg.cuotas.forEach((c,i) => {
+    const chk = document.getElementById(`achk-${i}`);
+    const fp = document.getElementById(`afp-${i}`);
+    if (chk) { c.pagada=chk.checked; c.fechaPago=chk.checked?(fp?.value||today()):null; }
+  });
+  try {
+    await updateDoc(doc(db,'registros',cuotasEditandoAsist),{cuotas:reg.cuotas});
+    if (getEstadoAsist(reg)==='pagado') confetti({particleCount:100,spread:80,origin:{y:0.6}});
+    await cargarAsistencia();
+    cerrarAsistCuotas();
+    showToast('Cuotas actualizadas','💳');
+    asistTab('registros');
+  } catch(e) { showToast('Error: '+e.message,'❌'); }
+};
+
+window.cerrarAsistCuotas = function() { document.getElementById('modal-asist-cuotas').classList.remove('open'); cuotasEditandoAsist=null; };
+
+window.eliminarAsist = async function(fid) {
+  if (!confirm('¿Eliminar este registro de asistencia?')) return;
+  try {
+    await deleteDoc(doc(db,'registros',fid));
+    await cargarAsistencia();
+    showToast('Eliminado','🗑️');
+    asistTab('registros');
+  } catch(e) { showToast('Error: '+e.message,'❌'); }
+};
+
+function renderAsistDashboard(cont) {
+  const total = asistRegistros.length;
+  const aldia = asistRegistros.filter(r=>getEstadoAsist(r)==='al-dia').length;
+  const vencido = asistRegistros.filter(r=>getEstadoAsist(r)==='vencido').length;
+  const pagado = asistRegistros.filter(r=>getEstadoAsist(r)==='pagado').length;
+  const recaudado = asistRegistros.reduce((s,r)=>s+r.cuotas.filter(c=>c.pagada).reduce((s2,c)=>s2+c.monto,0),0);
+
+  cont.innerHTML = `
+  <div class="stats-grid">
+    <div class="stat-card"><div class="stat-val">${total}</div><div class="stat-lbl">📋 Total</div></div>
+    <div class="stat-card"><div class="stat-val green-val">${aldia}</div><div class="stat-lbl">✅ Al Día</div></div>
+    <div class="stat-card"><div class="stat-val red-val">${vencido}</div><div class="stat-lbl">🔴 Vencidos</div></div>
+    <div class="stat-card"><div class="stat-val green-val">${pagado}</div><div class="stat-lbl">💚 Completos</div></div>
+    <div class="stat-card"><div class="stat-val">$${recaudado.toFixed(0)}</div><div class="stat-lbl">💰 Recaudado</div></div>
+  </div>`;
+}
+
+// ===================== BITÁCORA =====================
+async function cargarBitacora() {
+  try {
+    const snap = await getDocs(collection(db,'bitacora'));
+    bitacora = [];
+    snap.forEach(d => bitacora.push({...d.data(), firebaseId: d.id}));
+    bitacora.sort((a,b) => b.fecha.localeCompare(a.fecha));
+  } catch(e) { console.error(e); }
+}
+
+function renderModuloBitacora() {
+  const cont = document.getElementById('main-content');
+  cont.innerHTML = `
+  <div class="glass-card" style="margin-bottom:14px;">
+    <div class="card-header">
+      <div class="card-title">📓 Bitácora de la Cooperativa</div>
+    </div>
+    <div class="field-group">
+      <label class="field-label">📅 Fecha de la Entrada</label>
+      <input type="date" class="field-input" id="bit-fecha" value="${today()}">
+    </div>
+    <div class="field-group">
+      <label class="field-label">✍️ ¿Qué pasó hoy?</label>
+      <textarea class="field-input" id="bit-texto" rows="4" placeholder="Escribe lo que sucedió, visitas de socios, pagos especiales, acuerdos, etc..." style="resize:vertical;"></textarea>
+    </div>
+    <button class="btn btn-primary btn-full" onclick="guardarEntradaBitacora()">📝 Guardar Entrada</button>
+  </div>
+
+  <div class="glass-card">
+    <div class="card-header">
+      <div class="card-title">📖 Entradas Registradas</div>
+    </div>
+    <div class="filter-bar" style="margin-bottom:12px;">
+      <input type="text" class="search-input" placeholder="🔍 Buscar en bitácora..." oninput="filtrarBitacora(this.value)">
+      <input type="month" class="field-input" id="bit-filtro-mes" style="width:auto;padding:6px 12px;border-radius:20px;" onchange="filtrarBitacoraFecha(this.value)">
+    </div>
+    <div id="bitacora-lista"></div>
+  </div>`;
+  renderBitacoraLista(bitacora);
+}
+
+function renderBitacoraLista(lista) {
+  const cont = document.getElementById('bitacora-lista');
+  if (!cont) return;
+  if (lista.length === 0) {
+    cont.innerHTML = `<div class="empty-state"><div class="empty-emoji">📭</div><div class="empty-title">Sin entradas aún</div><div class="empty-sub">Empieza a registrar las actividades diarias</div></div>`;
+    return;
+  }
+  cont.innerHTML = lista.map(e => `
+  <div class="bitacora-entry" id="bentry-${e.firebaseId}">
+    <div class="bitacora-header">
+      <div class="bitacora-fecha">📅 ${formatDate(e.fecha)} <span class="bitacora-dia">${getDiaSemana(e.fecha)}</span></div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn-ghost btn-sm" onclick="editarEntrada('${e.firebaseId}')">✏️</button>
+        <button class="btn btn-red btn-sm" onclick="eliminarEntrada('${e.firebaseId}')">🗑️</button>
+      </div>
+    </div>
+    <div class="bitacora-texto">${e.texto.replace(/\n/g,'<br>')}</div>
+  </div>`).join('');
+}
+
+function getDiaSemana(dateStr) {
+  const dias = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  return dias[new Date(dateStr+'T12:00:00').getDay()];
+}
+
+window.guardarEntradaBitacora = async function() {
+  const fecha = document.getElementById('bit-fecha').value;
+  const texto = document.getElementById('bit-texto').value.trim();
+  if (!fecha || !texto) { showToast('Completa fecha y texto', '⚠️'); return; }
+  try {
+    // Si ya existe una entrada para esa fecha, actualizar
+    const existe = bitacora.find(e => e.fecha === fecha);
+    if (existe) {
+      await updateDoc(doc(db,'bitacora',existe.firebaseId), { fecha, texto, actualizado: today() });
+      showToast('Entrada actualizada', '✅');
+    } else {
+      await addDoc(collection(db,'bitacora'), { fecha, texto, creado: today() });
+      showToast('Entrada guardada', '📝');
+    }
+    await cargarBitacora();
+    document.getElementById('bit-texto').value = '';
+    renderBitacoraLista(bitacora);
+  } catch(e) { showToast('Error: '+e.message, '❌'); }
+};
+
+window.editarEntrada = function(fid) {
+  const e = bitacora.find(b => b.firebaseId === fid);
+  if (!e) return;
+  document.getElementById('bit-fecha').value = e.fecha;
+  document.getElementById('bit-texto').value = e.texto;
+  window.scrollTo(0,0);
+  showToast('Editando entrada del '+formatDate(e.fecha), '✏️');
+};
+
+window.eliminarEntrada = async function(fid) {
+  if (!confirm('¿Eliminar esta entrada?')) return;
+  try {
+    await deleteDoc(doc(db,'bitacora',fid));
+    await cargarBitacora();
+    renderBitacoraLista(bitacora);
+    showToast('Entrada eliminada','🗑️');
+  } catch(e) { showToast('Error: '+e.message,'❌'); }
+};
+
+window.filtrarBitacora = function(q) {
+  const search = q.toLowerCase();
+  const filtrada = bitacora.filter(e => e.texto.toLowerCase().includes(search) || e.fecha.includes(search));
+  renderBitacoraLista(filtrada);
+};
+
+window.filtrarBitacoraFecha = function(mes) {
+  if (!mes) { renderBitacoraLista(bitacora); return; }
+  const filtrada = bitacora.filter(e => e.fecha.startsWith(mes));
+  renderBitacoraLista(filtrada);
+};
+
+// ===================== EXCEL =====================
+window.exportarAdminExcel = function() {
+  const wb = XLSX.utils.book_new();
+  const data = [];
+  socios.forEach(s => {
+    MESES.forEach((mes,i) => {
+      const anio = new Date().getFullYear();
+      const key = `${anio}-${String(i+1).padStart(2,'0')}`;
+      const p = (s.pagos||{})[key]||{};
+      data.push({
+        '#Socio':s.num,'Nombre':s.nombre,'Cédula':s.cedula,
+        'Mes':mes,'Año':anio,'Monto':p.monto||25,
+        'Fecha Pago':p.fechaPago?formatDate(p.fechaPago):'—',
+        'Pagado':p.pagado?'SÍ':'NO',
+        'Multa':p.multa||0,'Cuenta':p.cuenta||'','Novedad':p.novedad||''
+      });
+    });
+  });
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(data),'Cuota Administrativa');
+  XLSX.writeFile(wb,`CuotaAdmin_${today().replace(/-/g,'')}.xlsx`);
+  showToast('Excel exportado','📊');
+};
+
+window.exportarSocioExcel = function(num) {
+  const socio = socios.find(s=>s.num===num);
+  if (!socio) return;
+  const wb = XLSX.utils.book_new();
+  const data = [];
+  const pagos = socio.pagos||{};
+  Object.keys(pagos).sort().forEach(key => {
+    const [anio,mes] = key.split('-');
+    const p = pagos[key];
+    data.push({ 'Período':`${MESES[parseInt(mes)-1]} ${anio}`, 'Monto':p.monto||25, 'Fecha Pago':p.fechaPago?formatDate(p.fechaPago):'—', 'Pagado':p.pagado?'SÍ':'NO', 'Multa':p.multa||0, 'Cuenta':p.cuenta||'', 'Novedad':p.novedad||'' });
+  });
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(data),`Socio ${num}`);
+  XLSX.writeFile(wb,`Socio${num}_${socio.nombre.split(' ')[0]}_${today().replace(/-/g,'')}.xlsx`);
+  showToast('Excel del socio exportado','📊');
+};
+
+window.exportarAsistExcel = function() {
+  const wb = XLSX.utils.book_new();
+  const data = asistRegistros.sort((a,b)=>a.numSocio-b.numSocio).map(r=>({
+    '#':r.numSocio,'Nombre':r.nombre,'Cédula':r.cedula,'Monto':r.monto,'Total':r.totalPagar,
+    'Retiro':formatDate(r.fechaRetiro),'1ª Cuota Máx':formatDate(r.fechaLimite),
+    'Cuotas Pagadas':r.cuotas.filter(c=>c.pagada).length,'Estado':getEstadoAsist(r)
+  }));
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(data),'Asistencia Social');
+  XLSX.writeFile(wb,`AsistSocial_${today().replace(/-/g,'')}.xlsx`);
+  showToast('Excel exportado','📊');
+};
+
+// ===================== UI UTILS =====================
+function showLoader(show) { document.getElementById('loader').style.display=show?'flex':'none'; }
+function showToast(msg,icon='✅') {
+  const t=document.getElementById('toast');
+  document.getElementById('toast-msg').textContent=msg;
+  document.getElementById('toast-icon').textContent=icon;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),3500);
+}
+function renderDateBadge() {
+  const now=new Date();
+  document.getElementById('dateBadge').textContent=now.toLocaleDateString('es-ES',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+}
+window.toggleDark = function() {
+  document.body.classList.toggle('dark-mode');
+  localStorage.setItem('darkmode',document.body.classList.contains('dark-mode')?'1':'0');
+};
+
+// event listeners
+document.getElementById('login-email').addEventListener('keydown',e=>{if(e.key==='Enter')loginUser();});
+document.getElementById('login-pass').addEventListener('keydown',e=>{if(e.key==='Enter')loginUser();});
+document.getElementById('modal-pago').addEventListener('click',function(e){if(e.target===this)cerrarModalPago();});
+document.getElementById('modal-edit-socio').addEventListener('click',function(e){if(e.target===this)cerrarModalEditSocio();});
+document.getElementById('modal-asist-cuotas').addEventListener('click',function(e){if(e.target===this)cerrarAsistCuotas();});
+
+if(localStorage.getItem('darkmode')==='1') document.body.classList.add('dark-mode');
+</script>
+
+<style>
+:root {
+  --bg-color: #f0f4f8;
+  --text-color: #2d3748;
+  --grid-dot: #cbd5e0;
+  --glass-bg: rgba(255,255,255,0.72);
+  --glass-border: 1px solid rgba(255,255,255,0.7);
+  --shadow-soft: 0 8px 32px 0 rgba(31,38,135,0.07);
+  --accent-color: #667eea;
+  --accent2: #764ba2;
+  --btn-bg: #fff;
+  --btn-text: #2d3748;
+  --modal-bg: rgba(255,255,255,0.98);
+  --input-bg: #fff;
+  --empty-text: #a0aec0;
+  --tape-color: rgba(255,255,255,0.55);
+  --surface: rgba(255,255,255,0.85);
+  --border-light: rgba(203,213,224,0.6);
+  --green: #059669; --red: #dc2626; --orange: #d97706; --blue: #2563eb;
+}
+.dark-mode {
+  --bg-color: #1a202c; --text-color: #e2e8f0; --grid-dot: #4a5568;
+  --glass-bg: rgba(26,32,44,0.65); --glass-border: 1px solid rgba(255,255,255,0.09);
+  --shadow-soft: 0 8px 32px 0 rgba(0,0,0,0.45);
+  --accent-color: #a3bffa; --accent2: #b794f4;
+  --btn-bg: #2d3748; --btn-text: #e2e8f0;
+  --modal-bg: rgba(26,32,44,0.98); --input-bg: #2d3748; --empty-text: #5f6c80;
+  --tape-color: rgba(255,255,255,0.12); --surface: rgba(45,55,72,0.8);
+  --border-light: rgba(74,85,104,0.6);
+  --green: #34d399; --red: #f87171; --orange: #fbbf24; --blue: #60a5fa;
+}
+
+@keyframes popIn { 0%{transform:scale(0.4) rotate(-5deg);opacity:0} 65%{transform:scale(1.08) rotate(1deg);opacity:1} 100%{transform:scale(1);opacity:1} }
+@keyframes fadeSlideUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+@keyframes headerIn { from{opacity:0;transform:translateY(-18px)} to{opacity:1;transform:translateY(0)} }
+@keyframes tabIn { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+@keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-8px)} 40%{transform:translateX(8px)} 60%{transform:translateX(-5px)} 80%{transform:translateX(5px)} }
+@keyframes spin { to{transform:rotate(360deg)} }
+@keyframes loginIn { from{opacity:0;transform:translateY(30px)} to{opacity:1;transform:translateY(0)} }
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body {
+  font-family:'Nunito','Segoe UI',sans-serif;
+  background-color:var(--bg-color);
+  background-image:radial-gradient(var(--grid-dot) 1.5px,transparent 1.5px);
+  background-size:25px 25px;
+  color:var(--text-color); min-height:100vh; overflow-x:hidden;
+  display:flex; flex-direction:column;
+  transition:background-color 0.4s,color 0.3s;
+  -webkit-tap-highlight-color:transparent;
+}
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-thumb{background:rgba(156,163,175,0.4);border-radius:6px}
+
+/* LOADER */
+#loader{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:none;align-items:center;justify-content:center;z-index:9999;backdrop-filter:blur(4px)}
+.loader-spin{width:48px;height:48px;border-radius:50%;border:4px solid rgba(102,126,234,0.2);border-top-color:var(--accent-color);animation:spin 0.8s linear infinite}
+
+/* LOGIN */
+#login-screen{position:fixed;inset:0;z-index:800;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1a202c,#2d3748);padding:20px}
+.login-card{background:var(--modal-bg);border-radius:28px;padding:36px 32px;max-width:400px;width:100%;box-shadow:0 32px 80px rgba(0,0,0,0.4);animation:loginIn 0.6s cubic-bezier(.175,.885,.32,1.275) forwards}
+.login-logo-wrap{text-align:center;margin-bottom:20px}
+.login-logo-circle{width:90px;height:90px;border-radius:50%;background:linear-gradient(135deg,#667eea,#764ba2);display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:2.8rem;box-shadow:0 8px 32px rgba(102,126,234,0.4)}
+.login-coop-name{font-family:'Indie Flower',cursive;font-size:1.3rem;font-weight:700;background:linear-gradient(135deg,#667eea,#764ba2);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1.3}
+.login-subtitle{font-size:0.72rem;font-weight:800;color:var(--empty-text);text-transform:uppercase;letter-spacing:2px;margin-top:6px}
+.login-divider{height:1px;background:linear-gradient(90deg,transparent,var(--border-light),transparent);margin:20px 0}
+.login-error{background:rgba(220,38,38,0.08);border:1px solid rgba(220,38,38,0.25);border-radius:10px;padding:10px 14px;font-size:0.82rem;font-weight:700;color:var(--red);display:none;margin-bottom:12px}
+.login-btn{width:100%;padding:14px;border-radius:14px;border:none;background:linear-gradient(135deg,#667eea,#764ba2);color:white;font-family:'Nunito',sans-serif;font-size:1rem;font-weight:800;cursor:pointer;box-shadow:0 6px 20px rgba(118,75,162,0.35);transition:all 0.2s;margin-top:6px}
+.login-btn:hover{transform:translateY(-2px)}
+.login-note{text-align:center;font-size:0.72rem;font-weight:700;color:var(--empty-text);margin-top:16px}
+
+/* APP */
+#app-screen{display:none;flex-direction:column;min-height:100vh}
+
+/* HEADER */
+header{padding:10px 16px;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;background:var(--glass-bg);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:var(--glass-border);position:sticky;top:0;z-index:500;box-shadow:0 2px 20px rgba(0,0,0,0.05);animation:headerIn 0.5s ease forwards}
+.header-left{display:flex;align-items:center;gap:8px}
+.logo{font-family:'Indie Flower',cursive;font-size:1.6rem;font-weight:700;background:linear-gradient(135deg,#667eea,#764ba2);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.logo-sub{font-size:0.6rem;font-weight:800;color:var(--empty-text);text-transform:uppercase;letter-spacing:1.5px}
+.header-center{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap}
+.header-right{display:flex;align-items:center;justify-content:flex-end;gap:6px}
+.date-badge{font-size:0.72rem;font-weight:800;background:linear-gradient(135deg,#667eea22,#764ba222);border:1px solid var(--accent-color);color:var(--accent-color);-webkit-text-fill-color:var(--accent-color);padding:4px 10px;border-radius:20px;white-space:nowrap}
+.ctrl-btn{padding:6px 12px;border-radius:10px;border:1px solid var(--grid-dot);background:var(--btn-bg);color:var(--btn-text);cursor:pointer;font-family:'Nunito',sans-serif;font-size:0.78rem;font-weight:700;outline:none;transition:transform 0.15s;white-space:nowrap}
+.ctrl-btn:hover{transform:translateY(-2px)}
+.user-chip{font-size:0.65rem;font-weight:800;color:var(--empty-text);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* MÓDULOS */
+.modulos-nav{display:flex;justify-content:center;gap:8px;padding:10px 16px;background:var(--glass-bg);backdrop-filter:blur(10px);border-bottom:var(--glass-border);flex-wrap:wrap}
+.modulo-btn{padding:8px 20px;border-radius:30px;border:2px solid var(--border-light);background:var(--glass-bg);color:var(--text-color);cursor:pointer;font-family:'Nunito',sans-serif;font-size:0.85rem;font-weight:800;outline:none;transition:all 0.25s;white-space:nowrap}
+.modulo-btn:hover{transform:translateY(-2px)}
+.modulo-btn.active{background:linear-gradient(135deg,#667eea,#764ba2);color:white;border-color:transparent;box-shadow:0 6px 20px rgba(118,75,162,0.35)}
+
+/* CONTENT */
+.content-area{flex:1;padding:14px 16px 80px;max-width:1100px;margin:0 auto;width:100%}
+
+/* TABS INNER */
+.tabs-nav-inner{display:flex;gap:6px;padding:0 0 12px;flex-wrap:wrap}
+.tab-btn{padding:8px 16px;border-radius:30px;border:2px solid var(--border-light);background:var(--glass-bg);color:var(--text-color);cursor:pointer;font-family:'Nunito',sans-serif;font-size:0.8rem;font-weight:800;outline:none;backdrop-filter:blur(10px);transition:all 0.25s;white-space:nowrap;display:flex;align-items:center;gap:5px}
+.tab-btn.active{background:linear-gradient(135deg,#667eea,#764ba2);color:white;border-color:transparent;box-shadow:0 6px 20px rgba(118,75,162,0.35)}
+.tab-badge{background:rgba(255,255,255,0.3);color:white;font-size:0.65rem;font-weight:900;padding:1px 6px;border-radius:10px}
+.tab-btn:not(.active) .tab-badge{background:var(--accent-color);color:white}
+
+/* GLASS CARD */
+.glass-card{background:var(--glass-bg);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:var(--glass-border);border-radius:20px;box-shadow:var(--shadow-soft);padding:20px;margin-bottom:16px;transition:background 0.4s}
+.card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px}
+.card-title{font-family:'Indie Flower',cursive;font-size:1.5rem;color:var(--accent-color);display:flex;align-items:center;gap:8px}
+
+/* FIELDS */
+.field-group{margin-bottom:14px}
+.field-label{display:block;font-size:0.7rem;font-weight:800;color:var(--empty-text);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:6px;margin-left:4px}
+.field-input{width:100%;padding:11px 16px;border-radius:14px;border:2px solid transparent;background:linear-gradient(var(--input-bg),var(--input-bg)) padding-box,linear-gradient(135deg,var(--grid-dot),var(--grid-dot)) border-box;color:var(--text-color);font-family:'Nunito',sans-serif;font-size:0.95rem;font-weight:700;outline:none;transition:all 0.25s;-webkit-appearance:none;appearance:none}
+.field-input:focus{background:linear-gradient(var(--input-bg),var(--input-bg)) padding-box,linear-gradient(135deg,#667eea,#764ba2) border-box;box-shadow:0 4px 18px rgba(102,126,234,0.18)}
+.field-input::placeholder{color:var(--empty-text);font-weight:600}
+textarea.field-input{resize:vertical;font-size:0.9rem;line-height:1.6}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+@media(max-width:600px){.grid-2,.grid-3{grid-template-columns:1fr}}
+
+/* MONTO */
+.monto-options{display:flex;gap:10px;margin-top:4px}
+.monto-opt{flex:1;padding:14px 10px;border-radius:14px;border:2px solid var(--border-light);background:var(--surface);cursor:pointer;transition:all 0.22s;text-align:center;user-select:none}
+.monto-opt.selected{border-color:var(--accent-color);background:rgba(102,126,234,0.08);box-shadow:0 4px 14px rgba(102,126,234,0.2)}
+.monto-opt .monto-value{font-family:'Indie Flower',cursive;font-size:1.5rem;font-weight:900;color:var(--accent-color)}
+.monto-opt .monto-label{font-size:0.62rem;font-weight:800;color:var(--empty-text);text-transform:uppercase;letter-spacing:1px;margin-top:2px}
+.monto-opt .monto-total{font-size:0.72rem;font-weight:700;color:var(--green);margin-top:4px}
+
+/* BUTTONS */
+.btn{padding:11px 22px;border-radius:30px;border:none;font-family:'Nunito',sans-serif;font-size:0.88rem;font-weight:800;cursor:pointer;transition:all 0.2s;outline:none;display:inline-flex;align-items:center;gap:8px}
+.btn:active{transform:scale(0.95)}
+.btn-primary{background:linear-gradient(135deg,#667eea,#764ba2);color:white;box-shadow:0 6px 18px rgba(118,75,162,0.35)}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 10px 26px rgba(118,75,162,0.42)}
+.btn-green{background:linear-gradient(135deg,#059669,#047857);color:white;box-shadow:0 6px 18px rgba(5,150,105,0.3)}
+.btn-green:hover{transform:translateY(-2px)}
+.btn-red{background:linear-gradient(135deg,#ef4444,#dc2626);color:white;box-shadow:0 4px 14px rgba(239,68,68,0.25)}
+.btn-ghost{background:var(--surface);color:var(--text-color);border:1.5px solid var(--border-light)}
+.btn-ghost:hover{transform:translateY(-2px)}
+.btn-sm{padding:6px 12px;font-size:0.76rem;border-radius:20px}
+.btn-full{width:100%;justify-content:center}
+
+/* INFO BOX */
+.info-box{border-radius:12px;padding:10px 14px;font-size:0.82rem;font-weight:700;display:flex;align-items:flex-start;gap:10px;margin-top:10px}
+.info-box-blue{background:rgba(37,99,235,0.08);border:1px solid rgba(37,99,235,0.2);color:var(--blue)}
+.info-box-green{background:rgba(5,150,105,0.08);border:1px solid rgba(5,150,105,0.2);color:var(--green)}
+
+/* STATUS CHIPS */
+.status-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:0.7rem;font-weight:800;text-transform:uppercase;letter-spacing:0.4px}
+.chip-verde{background:rgba(5,150,105,0.12);color:var(--green)}
+.chip-naranja{background:rgba(217,119,6,0.12);color:var(--orange)}
+.chip-rojo{background:rgba(220,38,38,0.12);color:var(--red)}
+.chip-gris{background:rgba(160,174,192,0.15);color:var(--empty-text)}
+.chip-dorado{background:rgba(217,119,6,0.12);color:var(--orange)}
+
+/* STATS */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:16px}
+.stat-card{background:var(--glass-bg);border:var(--glass-border);border-radius:16px;padding:14px 16px;text-align:center;box-shadow:var(--shadow-soft)}
+.stat-val{font-family:'Indie Flower',cursive;font-size:2rem;font-weight:700;background:linear-gradient(135deg,#667eea,#764ba2);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.stat-val.green-val{background:linear-gradient(135deg,#059669,#047857);-webkit-background-clip:text;background-clip:text}
+.stat-val.orange-val{background:linear-gradient(135deg,#f59e0b,#d97706);-webkit-background-clip:text;background-clip:text}
+.stat-val.red-val{background:linear-gradient(135deg,#ef4444,#dc2626);-webkit-background-clip:text;background-clip:text}
+.stat-lbl{font-size:0.62rem;font-weight:800;color:var(--empty-text);text-transform:uppercase;letter-spacing:0.8px;margin-top:4px}
+
+/* FILTER BAR */
+.filter-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
+.filter-chip{padding:5px 12px;border-radius:20px;border:1.5px solid var(--border-light);background:var(--glass-bg);color:var(--text-color);cursor:pointer;font-family:'Nunito',sans-serif;font-size:0.76rem;font-weight:800;outline:none;transition:all 0.2s}
+.filter-chip.active{background:var(--accent-color);color:white;border-color:var(--accent-color)}
+.search-input{flex:1;min-width:180px;padding:7px 14px;border-radius:20px;border:1.5px solid var(--border-light);background:var(--glass-bg);color:var(--text-color);font-family:'Nunito',sans-serif;font-size:0.85rem;font-weight:700;outline:none;transition:all 0.25s}
+.search-input:focus{border-color:var(--accent-color)}
+
+/* SOCIO ROW */
+.socio-row{display:flex;align-items:center;gap:12px;padding:12px;border-radius:14px;border:1.5px solid var(--border-light);background:var(--surface);cursor:pointer;transition:all 0.2s;margin-bottom:8px;flex-wrap:wrap}
+.socio-row:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(0,0,0,0.08);border-color:var(--accent-color)}
+.socio-num{font-family:'Indie Flower',cursive;font-size:1.4rem;color:var(--accent-color);min-width:50px}
+.socio-info{flex:1;min-width:150px}
+.socio-nombre{font-weight:800;font-size:0.9rem}
+.socio-cedula{font-size:0.7rem;color:var(--empty-text);font-weight:700}
+.socio-stats{display:flex;gap:10px;flex-wrap:wrap}
+.socio-stat-item{font-size:0.75rem;font-weight:800;color:var(--accent-color)}
+.socio-stat-item span{color:var(--empty-text);font-weight:700}
+.socio-stat-item.multa{color:var(--red)}
+.arrow-icon{font-size:1.4rem;color:var(--empty-text);font-weight:700}
+
+/* CARPETA SOCIO */
+.socio-card-header{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+.socio-avatar{font-family:'Indie Flower',cursive;font-size:3rem;color:var(--accent-color);background:linear-gradient(135deg,rgba(102,126,234,0.1),rgba(118,75,162,0.1));border-radius:16px;padding:8px 16px;flex-shrink:0}
+.socio-card-nombre{font-weight:900;font-size:1.1rem;line-height:1.3}
+.socio-card-cedula{font-size:0.78rem;font-weight:700;color:var(--empty-text);margin-top:4px}
+
+/* AÑOS */
+.years-nav{display:flex;gap:6px;flex-wrap:wrap;padding:0 0 12px}
+.year-btn{padding:6px 18px;border-radius:20px;border:1.5px solid var(--border-light);background:var(--glass-bg);color:var(--text-color);cursor:pointer;font-family:'Nunito',sans-serif;font-size:0.82rem;font-weight:800;outline:none;transition:all 0.2s}
+.year-btn.active{background:linear-gradient(135deg,#667eea,#764ba2);color:white;border-color:transparent}
+
+/* MESES GRID */
+.meses-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
+.mes-card{border-radius:16px;padding:14px;border:2px solid var(--border-light);background:var(--surface);cursor:pointer;transition:all 0.22s;position:relative}
+.mes-card:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,0.1)}
+.mes-card.mes-pagado{border-color:rgba(5,150,105,0.5);background:rgba(5,150,105,0.06)}
+.mes-card.mes-vencido{border-color:rgba(220,38,38,0.4);background:rgba(220,38,38,0.04)}
+.mes-nombre{font-family:'Indie Flower',cursive;font-size:1.2rem;color:var(--accent-color);margin-bottom:4px}
+.mes-estado{font-size:0.72rem;font-weight:800;margin-bottom:6px}
+.mes-detalle{font-size:0.72rem;font-weight:700;color:var(--text-color);display:flex;flex-direction:column;gap:3px}
+.mes-multa{color:var(--red)}
+.mes-aldia{color:var(--green)}
+.mes-cuenta{color:var(--blue);font-size:0.68rem}
+.mes-novedad{color:var(--empty-text);font-size:0.68rem;font-style:italic}
+.mes-limite{font-size:0.68rem;color:var(--empty-text);font-weight:700}
+.mes-multa-est{font-size:0.68rem;color:var(--red);font-weight:800;margin-top:3px}
+.mes-action-hint{font-size:0.6rem;color:var(--empty-text);font-weight:700;margin-top:6px;text-align:right}
+
+/* REG CARD (asistencia) */
+.reg-card{padding:16px;border-radius:18px;border:1.5px solid var(--border-light);background:var(--surface);position:relative;margin-bottom:12px;transition:transform 0.2s;animation:fadeSlideUp 0.35s ease}
+.reg-card::before{content:'';position:absolute;top:-9px;left:50%;transform:translateX(-50%);width:60px;height:18px;background:var(--tape-color);border-radius:3px}
+.reg-card:hover{transform:translateY(-3px);box-shadow:0 12px 30px rgba(0,0,0,0.1)}
+.reg-card.al-dia{border-color:rgba(5,150,105,0.3)}
+.reg-card.proximo{border-color:rgba(217,119,6,0.35)}
+.reg-card.vencido{border-color:rgba(220,38,38,0.35)}
+.reg-card.pagado{border-color:rgba(217,119,6,0.4)}
+.reg-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
+.reg-socio-num{font-family:'Indie Flower',cursive;font-size:1.8rem;color:var(--accent-color);line-height:1}
+.reg-socio-name{font-weight:800;font-size:1rem;margin-top:2px}
+.reg-cedula{font-size:0.72rem;font-weight:700;color:var(--empty-text)}
+.reg-right{text-align:right}
+.reg-monto{font-family:'Indie Flower',cursive;font-size:1.5rem;color:var(--green)}
+.reg-cuota{font-size:0.68rem;font-weight:800;color:var(--empty-text);margin-top:2px}
+.reg-pagado-label{font-size:0.72rem;font-weight:700;color:var(--accent-color);margin-top:4px}
+.progress-wrap{margin-top:12px}
+.progress-bar{height:8px;border-radius:4px;background:rgba(102,126,234,0.15);overflow:hidden}
+.progress-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,#667eea,#059669);transition:width 0.5s ease}
+.progress-label{font-size:0.68rem;font-weight:800;color:var(--empty-text);margin-top:4px;text-align:right}
+.cuotas-track{display:flex;gap:4px;align-items:center;margin-top:10px}
+.cuota-dot{flex:1;height:10px;border-radius:5px;background:var(--border-light);transition:background 0.3s;cursor:pointer}
+.cuota-dot.pagada{background:linear-gradient(135deg,#059669,#34d399)}
+.cuota-dot.pendiente-hoy{background:linear-gradient(135deg,#f59e0b,#d97706)}
+.cuota-dot.atrasada{background:linear-gradient(135deg,#ef4444,#dc2626)}
+.pagos-registrados{margin-top:10px;padding:10px 12px;background:rgba(102,126,234,0.06);border:1px solid rgba(102,126,234,0.15);border-radius:12px}
+.pagos-title{font-size:0.68rem;font-weight:800;color:var(--accent-color);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+.cuota-pago-item{display:flex;align-items:center;gap:8px;font-size:0.75rem;font-weight:700;padding:3px 0;border-bottom:1px solid rgba(102,126,234,0.08);flex-wrap:wrap}
+.cuota-pago-item:last-child{border-bottom:none}
+.cuota-num-mini{width:20px;height:20px;border-radius:50%;background:linear-gradient(135deg,#667eea,#764ba2);color:white;display:flex;align-items:center;justify-content:center;font-size:0.65rem;font-weight:900;flex-shrink:0}
+.cuota-fecha-pago{color:var(--accent-color);font-size:0.72rem;flex:1}
+.cuota-monto-mini{color:var(--green);font-weight:900}
+.reg-dates{display:flex;gap:12px;margin-top:12px;flex-wrap:wrap;padding-top:10px;border-top:1px solid var(--border-light)}
+.reg-date-item{flex:1;min-width:100px}
+.reg-date-label{font-size:0.6rem;font-weight:800;color:var(--empty-text);text-transform:uppercase;letter-spacing:1px}
+.reg-date-value{font-size:0.88rem;font-weight:800;margin-top:2px}
+.reg-status-bar{display:flex;align-items:center;justify-content:space-between;margin-top:12px;flex-wrap:wrap;gap:8px}
+.reg-obs{margin-top:8px;font-size:0.75rem;color:var(--empty-text);font-weight:700}
+
+/* CUOTA ITEMS */
+.cuotas-list{display:flex;flex-direction:column;gap:8px}
+.cuota-item{display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border-radius:12px;border:1.5px solid var(--border-light);background:var(--surface)}
+.cuota-item.cuota-pagada{border-color:rgba(5,150,105,0.3);background:rgba(5,150,105,0.04)}
+.cuota-num{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#667eea,#764ba2);color:white;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:900;flex-shrink:0}
+.cuota-info{flex:1}
+.cuota-fecha{font-size:0.82rem;font-weight:800}
+.cuota-fecha-real{font-size:0.72rem;font-weight:800;color:var(--green);margin-top:4px}
+.cuota-monto{font-weight:900;font-size:0.9rem;color:var(--green);white-space:nowrap}
+
+/* BITÁCORA */
+.bitacora-entry{padding:16px;border-radius:16px;border:1.5px solid var(--border-light);background:var(--surface);margin-bottom:10px;animation:fadeSlideUp 0.3s ease;position:relative}
+.bitacora-entry::before{content:'';position:absolute;top:-9px;left:40px;width:50px;height:16px;background:var(--tape-color);border-radius:3px}
+.bitacora-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px}
+.bitacora-fecha{font-family:'Indie Flower',cursive;font-size:1.1rem;color:var(--accent-color);font-weight:700}
+.bitacora-dia{font-size:0.72rem;font-weight:800;color:var(--empty-text);margin-left:6px}
+.bitacora-texto{font-size:0.88rem;font-weight:600;line-height:1.7;color:var(--text-color)}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.45);backdrop-filter:blur(6px);z-index:900;display:none;align-items:center;justify-content:center;padding:16px}
+.modal-overlay.open{display:flex}
+.modal{background:var(--modal-bg);border-radius:24px;max-width:480px;width:100%;max-height:90vh;overflow-y:auto;padding:24px;box-shadow:0 24px 80px rgba(0,0,0,0.2);animation:popIn 0.4s cubic-bezier(.175,.885,.32,1.275) forwards;position:relative}
+.modal-title{font-family:'Indie Flower',cursive;font-size:1.5rem;color:var(--accent-color);margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.modal-socio-sub{font-size:0.78rem;font-weight:800;color:var(--empty-text);margin-bottom:16px}
+.modal-close{position:absolute;top:16px;right:16px;background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--empty-text);line-height:1}
+
+/* TOAST */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(100px);background:var(--modal-bg);border:1px solid var(--border-light);border-radius:16px;padding:12px 22px;z-index:9999;font-size:0.88rem;font-weight:800;box-shadow:0 10px 40px rgba(0,0,0,0.15);transition:transform 0.4s cubic-bezier(.175,.885,.32,1.275),opacity 0.3s;opacity:0;display:flex;align-items:center;gap:10px;white-space:nowrap}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+
+/* EMPTY */
+.empty-state{text-align:center;padding:40px 20px;color:var(--empty-text)}
+.empty-emoji{font-size:3.5rem;margin-bottom:10px}
+.empty-title{font-size:1.1rem;font-weight:800;margin-bottom:6px}
+.empty-sub{font-size:0.82rem;font-weight:600}
+
+/* MOBILE */
+@media(max-width:640px){
+  .modulos-nav{padding:8px;gap:6px}
+  .modulo-btn{padding:7px 14px;font-size:0.78rem}
+  .meses-grid{grid-template-columns:1fr 1fr}
+  .glass-card{padding:14px}
+  .stats-grid{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+
+<div id="loader"><div class="loader-spin"></div></div>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo-wrap">
+      <div class="login-logo-circle">🚕</div>
+      <div class="login-coop-name">Cooperativa de Taxis<br>Ciudad de Portoviejo N°14</div>
+      <div class="login-subtitle">Sistema de Gestión Cooperativa</div>
+    </div>
+    <div class="login-divider"></div>
+    <div id="login-error" class="login-error"></div>
+    <div class="field-group">
+      <label class="field-label">📧 Correo electrónico</label>
+      <input type="email" class="field-input" id="login-email" placeholder="correo@ejemplo.com" autocomplete="email">
+    </div>
+    <div class="field-group">
+      <label class="field-label">🔐 Contraseña</label>
+      <input type="password" class="field-input" id="login-pass" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="login-btn" id="login-btn" onclick="loginUser()">🔐 Ingresar al Sistema</button>
+    <div class="login-note">🔒 Acceso restringido · Solo personal autorizado</div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app-screen">
+  <header>
+    <div class="header-left">
+      <span style="font-size:1.6rem;">🚕</span>
+      <div>
+        <div class="logo">CoopTaxi N°14</div>
+        <div class="logo-sub">Portoviejo · Ecuador</div>
+      </div>
+    </div>
+    <div class="header-center">
+      <span class="date-badge" id="dateBadge"></span>
+    </div>
+    <div class="header-right">
+      <span class="user-chip" id="user-email"></span>
+      <button class="ctrl-btn" onclick="toggleDark()">🌙</button>
+      <button class="ctrl-btn" onclick="logoutUser()" style="background:rgba(220,38,38,0.1);color:var(--red);border-color:rgba(220,38,38,0.3);">🚪 Salir</button>
+    </div>
+  </header>
+
+  <!-- MÓDULOS NAV -->
+  <div class="modulos-nav">
+    <button class="modulo-btn active" id="mod-btn-admin" onclick="setModulo('admin')">🏠 Cuota Administrativa</button>
+    <button class="modulo-btn" id="mod-btn-asistencia" onclick="setModulo('asistencia')">🤝 Asistencia Social</button>
+    <button class="modulo-btn" id="mod-btn-bitacora" onclick="setModulo('bitacora')">📓 Bitácora</button>
+  </div>
+
+  <div class="content-area">
+    <div id="main-content">
+      <div class="empty-state"><div class="empty-emoji">⏳</div><div class="empty-title">Cargando...</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PAGO MES -->
+<div class="modal-overlay" id="modal-pago">
+  <div class="modal">
+    <button class="modal-close" onclick="cerrarModalPago()">✕</button>
+    <div class="modal-title" id="modal-pago-title">💳 Registrar Pago</div>
+    <div class="modal-socio-sub" id="modal-pago-socio"></div>
+    <div id="modal-pago-body"></div>
+    <div style="margin-top:16px;display:flex;gap:8px;">
+      <button class="btn btn-ghost btn-full" onclick="cerrarModalPago()">Cancelar</button>
+      <button class="btn btn-primary btn-full" onclick="guardarPagoMes()">✅ Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL EDITAR SOCIO -->
+<div class="modal-overlay" id="modal-edit-socio">
+  <div class="modal" style="max-width:400px;">
+    <button class="modal-close" onclick="cerrarModalEditSocio()">✕</button>
+    <div class="modal-title">✏️ Editar Socio <span id="edit-socio-num" style="color:var(--accent-color)"></span></div>
+    <input type="hidden" id="edit-socio-id">
+    <div class="field-group" style="margin-top:12px;">
+      <label class="field-label">👤 Nombre completo</label>
+      <input type="text" class="field-input" id="edit-nombre" placeholder="NOMBRE APELLIDO">
+    </div>
+    <div class="field-group">
+      <label class="field-label">🪪 Cédula</label>
+      <input type="text" class="field-input" id="edit-cedula" placeholder="1234567890" maxlength="10">
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button class="btn btn-ghost btn-full" onclick="cerrarModalEditSocio()">Cancelar</button>
+      <button class="btn btn-primary btn-full" onclick="guardarEditSocio()">✅ Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CUOTAS ASISTENCIA -->
+<div class="modal-overlay" id="modal-asist-cuotas">
+  <div class="modal">
+    <button class="modal-close" onclick="cerrarAsistCuotas()">✕</button>
+    <div class="modal-title" id="modal-asist-cuotas-title">💳 Cuotas</div>
+    <div id="modal-asist-cuotas-body"></div>
+    <div style="margin-top:16px;">
+      <button class="btn btn-primary btn-full" onclick="guardarAsistCuotas()">✅ Guardar Cambios</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast">
+  <span id="toast-icon">✅</span>
+  <span id="toast-msg"></span>
+</div>
+
+</body>
+</html>
