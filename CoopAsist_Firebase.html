@@ -1,0 +1,1626 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1a6b2f">
+<title>CoopAsist · Coop. Taxis Portoviejo N°14</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+<!-- Firebase -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+// ===================== FIREBASE CONFIG =====================
+const firebaseConfig = {
+  apiKey: "AIzaSyC152bnS9qB_BechoJ7l0TdbXQxvhgDBu4",
+  authDomain: "coop-taxi-portoviejo.firebaseapp.com",
+  projectId: "coop-taxi-portoviejo",
+  storageBucket: "coop-taxi-portoviejo.firebasestorage.app",
+  messagingSenderId: "56802886359",
+  appId: "1:56802886359:web:81d14eab7e9d4d9055a692"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+// ===================== STATE =====================
+let registros = [];
+let montoSeleccionado = 300;
+let filtroActivo = 'todos';
+let cuotasEditando = null;
+let deleteId = null;
+let deleteFirebaseId = null;
+let editandoId = null;
+let currentUser = null;
+
+// ===================== AUTH =====================
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    currentUser = user;
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app-screen').style.display = 'flex';
+    document.getElementById('user-email').textContent = user.email;
+    cargarRegistros();
+  } else {
+    currentUser = null;
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('app-screen').style.display = 'none';
+  }
+});
+
+window.loginUser = async function() {
+  const email = document.getElementById('login-email').value.trim();
+  const pass = document.getElementById('login-pass').value.trim();
+  const btn = document.getElementById('login-btn');
+  const err = document.getElementById('login-error');
+
+  if (!email || !pass) {
+    err.textContent = 'Por favor completa todos los campos';
+    err.style.display = 'block';
+    return;
+  }
+
+  btn.textContent = 'Ingresando...';
+  btn.disabled = true;
+  err.style.display = 'none';
+
+  try {
+    await signInWithEmailAndPassword(auth, email, pass);
+  } catch (e) {
+    let msg = 'Correo o contraseña incorrectos';
+    if (e.code === 'auth/too-many-requests') msg = 'Demasiados intentos. Espera un momento.';
+    err.textContent = msg;
+    err.style.display = 'block';
+    btn.textContent = '🔐 Ingresar';
+    btn.disabled = false;
+  }
+};
+
+window.logoutUser = async function() {
+  await signOut(auth);
+  showToast('Sesión cerrada', '👋');
+};
+
+// ===================== FIRESTORE =====================
+async function cargarRegistros() {
+  try {
+    showLoader(true);
+    const q = query(collection(db, 'registros'), orderBy('numSocio'));
+    const snap = await getDocs(q);
+    registros = [];
+    snap.forEach(d => registros.push({ ...d.data(), firebaseId: d.id }));
+    renderBadges();
+    renderAlertVenc();
+    renderRegistros();
+    showLoader(false);
+  } catch(e) {
+    showToast('Error cargando datos: ' + e.message, '❌');
+    showLoader(false);
+  }
+}
+
+window.guardarRegistro = async function() {
+  const numSocio = document.getElementById('inp-numSocio').value.trim();
+  const nombre = document.getElementById('inp-nombre').value.trim();
+  const cedula = document.getElementById('inp-cedula').value.trim();
+  const fechaRetiro = document.getElementById('inp-fechaRetiro').value;
+
+  if (!numSocio || !nombre || !cedula || !fechaRetiro) {
+    showToast('Completa todos los campos obligatorios', '⚠️');
+    shake(document.getElementById('btn-guardar'));
+    return;
+  }
+  if (parseInt(numSocio) < 1 || parseInt(numSocio) > 61) {
+    showToast('El número de socio debe estar entre 1 y 61', '⚠️');
+    return;
+  }
+
+  const cuotas = generarCuotas(fechaRetiro, montoSeleccionado);
+  const reg = {
+    numSocio: parseInt(numSocio),
+    nombre, cedula,
+    monto: montoSeleccionado,
+    totalPagar: montoSeleccionado === 300 ? 330 : 220,
+    fechaRetiro,
+    fechaLimite: addDays(fechaRetiro, 35),
+    obs: document.getElementById('inp-obs').value.trim(),
+    cuotas,
+    fechaCreacion: today(),
+    creadoPor: currentUser?.email || ''
+  };
+
+  const btn = document.getElementById('btn-guardar');
+  btn.textContent = '💾 Guardando...';
+  btn.disabled = true;
+
+  try {
+    if (editandoId) {
+      const r = registros.find(r => r.firebaseId === editandoId);
+      await updateDoc(doc(db, 'registros', editandoId), reg);
+      showToast(`Registro de ${nombre} actualizado`, '✅');
+      editandoId = null;
+      document.getElementById('btn-cancelar-edit').style.display = 'none';
+    } else {
+      await addDoc(collection(db, 'registros'), reg);
+      confetti({ particleCount: 80, spread: 60, origin: { y: 0.6 }, colors: ['#1a6b2f','#c9a84c','#fff'] });
+      showToast(`Registro de ${nombre} guardado`, '✅');
+    }
+    resetForm();
+    await cargarRegistros();
+    setTimeout(() => switchTab('registros'), 600);
+  } catch(e) {
+    showToast('Error guardando: ' + e.message, '❌');
+  }
+
+  btn.textContent = '💾 Guardar Registro';
+  btn.disabled = false;
+};
+
+window.confirmarEliminar = async function() {
+  try {
+    await deleteDoc(doc(db, 'registros', deleteFirebaseId));
+    cerrarModalDel();
+    await cargarRegistros();
+    showToast('Registro eliminado', '🗑️');
+  } catch(e) {
+    showToast('Error eliminando: ' + e.message, '❌');
+  }
+};
+
+window.guardarCuotas = async function() {
+  const reg = registros.find(r => r.firebaseId === cuotasEditando);
+  if (!reg) return;
+
+  reg.cuotas.forEach((c, i) => {
+    const chk = document.getElementById(`chk-${i}`);
+    const fechaInp = document.getElementById(`fecha-pago-${i}`);
+    if (chk) {
+      c.pagada = chk.checked;
+      c.fechaPago = chk.checked ? (fechaInp?.value || today()) : null;
+    }
+  });
+
+  try {
+    await updateDoc(doc(db, 'registros', cuotasEditando), { cuotas: reg.cuotas });
+    const estado = getEstadoRegistro(reg);
+    if (estado === 'pagado') {
+      confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 }, colors: ['#1a6b2f','#34d399','#c9a84c'] });
+    }
+    await cargarRegistros();
+    cerrarModal();
+    showToast('Cuotas actualizadas', '💳');
+  } catch(e) {
+    showToast('Error actualizando cuotas: ' + e.message, '❌');
+  }
+};
+
+// ===================== UTILS =====================
+function formatDate(dateStr) {
+  if (!dateStr) return '—';
+  const [y, m, d] = dateStr.split('-');
+  return `${d}/${m}/${y}`;
+}
+function addDays(dateStr, days) {
+  const d = new Date(dateStr + 'T12:00:00');
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split('T')[0];
+}
+function today() { return new Date().toISOString().split('T')[0]; }
+function daysBetween(d1, d2) {
+  const a = new Date(d1 + 'T12:00:00');
+  const b = new Date(d2 + 'T12:00:00');
+  return Math.round((b - a) / 86400000);
+}
+function getEstadoCuota(cuota) {
+  const hoy = today();
+  if (cuota.pagada) return 'pagada';
+  if (hoy > cuota.fechaLimite) return 'atrasada';
+  const dias = daysBetween(hoy, cuota.fechaLimite);
+  if (dias <= 7) return 'pendiente-hoy';
+  return 'pendiente';
+}
+function getEstadoRegistro(reg) {
+  if (!reg.cuotas || reg.cuotas.length === 0) return 'al-dia';
+  const todasPagadas = reg.cuotas.every(c => c.pagada);
+  if (todasPagadas) return 'pagado';
+  const hoy = today();
+  const hayVencidas = reg.cuotas.some(c => !c.pagada && hoy > c.fechaLimite);
+  if (hayVencidas) return 'vencido';
+  const hayProxima = reg.cuotas.some(c => {
+    if (c.pagada) return false;
+    const dias = daysBetween(hoy, c.fechaLimite);
+    return dias >= 0 && dias <= 7;
+  });
+  if (hayProxima) return 'proximo';
+  return 'al-dia';
+}
+function generarCuotas(fechaRetiro, monto) {
+  const cuotas = [];
+  for (let i = 1; i <= 6; i++) {
+    const fechaBase = addDays(fechaRetiro, i * 30);
+    const fechaLimite = addDays(fechaBase, 5);
+    cuotas.push({
+      num: i,
+      monto: monto === 300 ? 55 : Math.round((220/6)*100)/100,
+      fechaBase, fechaLimite,
+      pagada: false, fechaPago: null
+    });
+  }
+  return cuotas;
+}
+function showLoader(show) {
+  document.getElementById('loader').style.display = show ? 'flex' : 'none';
+}
+function shake(el) {
+  if (!el) return;
+  el.style.animation = 'shake 0.4s ease';
+  setTimeout(() => el.style.animation = '', 500);
+}
+function resetForm() {
+  ['inp-numSocio','inp-nombre','inp-cedula','inp-obs'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  document.getElementById('inp-fechaRetiro').value = today();
+  document.getElementById('inp-fechaLimite').value = '';
+  document.getElementById('info-fechas').style.display = 'none';
+  calcularFechas();
+  editandoId = null;
+  document.getElementById('btn-cancelar-edit').style.display = 'none';
+  document.getElementById('form-title').textContent = '✏️ Nuevo Registro';
+}
+
+// ===================== UI =====================
+window.switchTab = function(id) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  const tabBtn = document.getElementById('tab-'+id);
+  const panel = document.getElementById('panel-'+id);
+  if (tabBtn) tabBtn.classList.add('active');
+  if (panel) panel.classList.add('active');
+  if (id === 'registros') renderRegistros();
+  if (id === 'dashboard') renderDashboard();
+  if (id === 'semana') renderSemana();
+};
+
+window.toggleDark = function() {
+  document.body.classList.toggle('dark-mode');
+  localStorage.setItem('darkmode', document.body.classList.contains('dark-mode') ? '1' : '0');
+};
+
+function showToast(msg, icon='✅') {
+  const t = document.getElementById('toast');
+  document.getElementById('toast-msg').textContent = msg;
+  document.getElementById('toast-icon').textContent = icon;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+window.calcularFechas = function() {
+  const retiro = document.getElementById('inp-fechaRetiro').value;
+  if (!retiro) return;
+  const limite = addDays(retiro, 35);
+  document.getElementById('inp-fechaLimite').value = limite;
+  const infoBox = document.getElementById('info-fechas');
+  infoBox.style.display = 'flex';
+  const cuotaMonto = montoSeleccionado === 300 ? '$55' : '~$36.67';
+  document.getElementById('info-fechas-text').innerHTML =
+    `Retiro: <strong>${formatDate(retiro)}</strong> → 1ª cuota máx: <strong>${formatDate(limite)}</strong> · 6 cuotas de <strong>${cuotaMonto}</strong> mensuales + 5 días de gracia.`;
+};
+
+window.seleccionarMonto = function(monto, el) {
+  document.querySelectorAll('.monto-opt').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  montoSeleccionado = monto;
+  calcularFechas();
+};
+
+window.setFilter = function(f, btn) {
+  filtroActivo = f;
+  document.querySelectorAll('.filter-chip').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderRegistros();
+};
+
+function renderBadges() {
+  document.getElementById('badge-registros').textContent = registros.length;
+  const venc = registros.filter(r => getEstadoRegistro(r) === 'vencido').length;
+  document.getElementById('badge-vencidos').textContent = venc;
+}
+
+function renderAlertVenc() {
+  const venc = registros.filter(r => getEstadoRegistro(r) === 'vencido').length;
+  const el = document.getElementById('alertVenc');
+  document.getElementById('alertVencCount').textContent = venc;
+  el.style.display = venc > 0 ? 'flex' : 'none';
+}
+
+// ===================== REGISTROS =====================
+function renderRegistros() {
+  const search = (document.getElementById('searchInput')?.value || '').toLowerCase();
+  const container = document.getElementById('lista-registros');
+  let lista = [...registros];
+
+  if (search) {
+    lista = lista.filter(r =>
+      r.nombre.toLowerCase().includes(search) ||
+      r.cedula.includes(search) ||
+      String(r.numSocio).includes(search)
+    );
+  }
+  if (filtroActivo !== 'todos') {
+    lista = lista.filter(r => getEstadoRegistro(r) === filtroActivo);
+  }
+  lista.sort((a,b) => a.numSocio - b.numSocio);
+
+  if (lista.length === 0) {
+    container.innerHTML = `<div class="empty-state">
+      <div class="empty-emoji">📭</div>
+      <div class="empty-title">Sin resultados</div>
+      <div class="empty-sub">Intenta cambiar los filtros o buscar con otro término</div>
+    </div>`;
+    return;
+  }
+  container.innerHTML = lista.map(r => renderRegCard(r)).join('');
+}
+
+function renderRegCard(r) {
+  const estado = getEstadoRegistro(r);
+  const cuotasPagadas = r.cuotas.filter(c => c.pagada).length;
+  const totalPagado = r.cuotas.filter(c => c.pagada).reduce((s,c) => s+c.monto, 0);
+  const hoy = today();
+  const pct = Math.round((totalPagado / r.totalPagar) * 100);
+
+  const chipMap = {
+    'al-dia': `<span class="status-chip chip-verde">✅ Al día</span>`,
+    'proximo': `<span class="status-chip chip-naranja">⚠️ Por vencer</span>`,
+    'vencido': `<span class="status-chip chip-rojo">🔴 Vencido</span>`,
+    'pagado': `<span class="status-chip chip-dorado">💚 Completado</span>`
+  };
+
+  const dotsHtml = r.cuotas.map(c => {
+    const est = getEstadoCuota(c);
+    const tip = `C${c.num}: ${formatDate(c.fechaLimite)}${c.pagada ? ' ✓ Pagada el '+formatDate(c.fechaPago) : ''}`;
+    return `<div class="cuota-dot ${est}" data-tip="${tip}" title="${tip}"></div>`;
+  }).join('');
+
+  // Cuotas pagadas detalle
+  const cuotasPagadasHtml = r.cuotas
+    .filter(c => c.pagada)
+    .map(c => `<div class="cuota-pago-item">
+      <span class="cuota-num-mini">${c.num}</span>
+      <span>Cuota ${c.num}</span>
+      <span class="cuota-fecha-pago">📅 ${formatDate(c.fechaPago)}</span>
+      <span class="cuota-monto-mini">$${c.monto}</span>
+    </div>`).join('');
+
+  const proxCuota = r.cuotas.find(c => !c.pagada);
+  let diasInfo = '';
+  if (proxCuota && estado !== 'pagado') {
+    const diasRest = daysBetween(hoy, proxCuota.fechaLimite);
+    if (diasRest < 0) diasInfo = `<span class="status-chip chip-rojo">⏰ ${Math.abs(diasRest)} días de atraso</span>`;
+    else if (diasRest <= 7) diasInfo = `<span class="status-chip chip-naranja">⏰ Vence en ${diasRest} días</span>`;
+    else diasInfo = `<span class="status-chip chip-gris">📅 Próx. cuota en ${diasRest} días</span>`;
+  }
+
+  return `
+  <div class="reg-card ${estado}" id="card-${r.firebaseId}">
+    <div class="reg-top">
+      <div class="reg-left-info">
+        <div class="reg-socio-num">#${String(r.numSocio).padStart(2,'0')}</div>
+        <div class="reg-socio-name">${r.nombre}</div>
+        <div class="reg-cedula">🪪 CI: ${r.cedula}</div>
+      </div>
+      <div class="reg-right">
+        <div class="reg-monto">$${r.totalPagar}</div>
+        <div class="reg-cuota">${cuotasPagadas}/6 cuotas · $${r.cuotas[0]?.monto || 55}/mes</div>
+        <div class="reg-pagado-label">Pagado: <strong>$${totalPagado.toFixed(0)}</strong></div>
+      </div>
+    </div>
+
+    <!-- Barra de progreso -->
+    <div class="progress-wrap">
+      <div class="progress-bar">
+        <div class="progress-fill" style="width:${pct}%"></div>
+      </div>
+      <div class="progress-label">${pct}% recaudado · $${totalPagado.toFixed(0)} de $${r.totalPagar}</div>
+    </div>
+
+    <!-- Dots cuotas -->
+    <div class="cuotas-track">${dotsHtml}</div>
+
+    <!-- Fechas de pago registradas -->
+    ${cuotasPagadas > 0 ? `
+    <div class="pagos-registrados">
+      <div class="pagos-title">💳 Pagos registrados:</div>
+      ${cuotasPagadasHtml}
+    </div>` : ''}
+
+    <div class="reg-dates">
+      <div class="reg-date-item">
+        <div class="reg-date-label">📅 Retiro</div>
+        <div class="reg-date-value">${formatDate(r.fechaRetiro)}</div>
+      </div>
+      <div class="reg-date-item">
+        <div class="reg-date-label">⏰ 1ª Cuota Máx.</div>
+        <div class="reg-date-value">${formatDate(r.fechaLimite)}</div>
+      </div>
+      ${proxCuota && estado !== 'pagado' ? `
+      <div class="reg-date-item">
+        <div class="reg-date-label">📌 Próx. vencimiento</div>
+        <div class="reg-date-value">${formatDate(proxCuota.fechaLimite)}</div>
+      </div>` : ''}
+    </div>
+
+    <div class="reg-status-bar">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+        ${chipMap[estado] || ''}
+        ${diasInfo}
+      </div>
+      <div class="reg-actions">
+        <button class="btn btn-edit btn-sm" onclick="editarRegistro('${r.firebaseId}')">✏️</button>
+        <button class="btn btn-primary btn-sm" onclick="abrirCuotas('${r.firebaseId}')">💳 Cuotas</button>
+        <button class="btn btn-red btn-sm" onclick="abrirDel('${r.firebaseId}')">🗑️</button>
+      </div>
+    </div>
+    ${r.obs ? `<div class="reg-obs">📝 ${r.obs}</div>` : ''}
+  </div>`;
+}
+
+// ===================== EDITAR =====================
+window.editarRegistro = function(fid) {
+  const reg = registros.find(r => r.firebaseId === fid);
+  if (!reg) return;
+  editandoId = fid;
+  document.getElementById('inp-numSocio').value = reg.numSocio;
+  document.getElementById('inp-nombre').value = reg.nombre;
+  document.getElementById('inp-cedula').value = reg.cedula;
+  document.getElementById('inp-fechaRetiro').value = reg.fechaRetiro;
+  document.getElementById('inp-obs').value = reg.obs || '';
+  montoSeleccionado = reg.monto;
+  document.querySelectorAll('.monto-opt').forEach((o,i) => {
+    o.classList.toggle('selected', (i===0 && reg.monto===300)||(i===1 && reg.monto===200));
+  });
+  calcularFechas();
+  document.getElementById('form-title').textContent = '✏️ Editar Registro';
+  document.getElementById('btn-cancelar-edit').style.display = 'inline-flex';
+  switchTab('nuevo');
+  window.scrollTo(0,0);
+  showToast('Editando registro de ' + reg.nombre, '✏️');
+};
+
+window.cancelarEdit = function() {
+  editandoId = null;
+  resetForm();
+  document.getElementById('form-title').textContent = '✏️ Nuevo Registro';
+  document.getElementById('btn-cancelar-edit').style.display = 'none';
+};
+
+// ===================== CUOTAS MODAL =====================
+window.abrirCuotas = function(fid) {
+  cuotasEditando = fid;
+  const reg = registros.find(r => r.firebaseId === fid);
+  if (!reg) return;
+  document.getElementById('modal-cuotas-title').textContent = `💳 ${reg.nombre}`;
+  const body = document.getElementById('modal-cuotas-body');
+  const totalPagado = reg.cuotas.filter(c=>c.pagada).reduce((s,c)=>s+c.monto,0);
+
+  body.innerHTML = `
+    <div class="info-box info-box-green" style="margin-bottom:14px;">
+      <span>💰</span>
+      <div>Pagado: <strong>$${totalPagado.toFixed(2)}</strong> de <strong>$${reg.totalPagar}</strong> · ${reg.cuotas.filter(c=>c.pagada).length}/6 cuotas</div>
+    </div>
+    <div class="cuotas-list">
+      ${reg.cuotas.map((c,i) => {
+        const est = getEstadoCuota(c);
+        const estLabel = { pagada:'✅ Pagada', atrasada:'🔴 Atrasada', 'pendiente-hoy':'⚠️ Por vencer', pendiente:'⏳ Pendiente' }[est];
+        const colors = { pagada:'chip-verde', atrasada:'chip-rojo', 'pendiente-hoy':'chip-naranja', pendiente:'chip-gris' };
+        return `
+        <div class="cuota-item ${c.pagada ? 'cuota-pagada' : ''}">
+          <div class="cuota-num">${c.num}</div>
+          <div class="cuota-info">
+            <div class="cuota-fecha">Límite: ${formatDate(c.fechaLimite)}</div>
+            <div style="margin-top:3px;"><span class="status-chip ${colors[est]}" style="font-size:0.65rem;">${estLabel}</span></div>
+            ${c.pagada ? `<div class="cuota-fecha-real">📅 Pagada el: <strong>${formatDate(c.fechaPago)}</strong></div>` : `
+            <div style="margin-top:6px;">
+              <label class="field-label" style="margin-bottom:3px;">Fecha real de pago</label>
+              <input type="date" class="field-input" id="fecha-pago-${i}" style="padding:6px 10px;font-size:0.8rem;" value="${today()}">
+            </div>`}
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+            <div class="cuota-monto">$${c.monto}</div>
+            <input type="checkbox" id="chk-${i}" ${c.pagada ? 'checked' : ''} style="width:22px;height:22px;cursor:pointer;accent-color:#1a6b2f;">
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  document.getElementById('modal-cuotas').classList.add('open');
+};
+
+window.cerrarModal = function() {
+  document.getElementById('modal-cuotas').classList.remove('open');
+  cuotasEditando = null;
+};
+
+window.abrirDel = function(fid) {
+  deleteFirebaseId = fid;
+  const reg = registros.find(r => r.firebaseId === fid);
+  document.getElementById('del-nombre').textContent = reg ? reg.nombre : '';
+  document.getElementById('modal-del').classList.add('open');
+};
+
+window.cerrarModalDel = function() {
+  document.getElementById('modal-del').classList.remove('open');
+  deleteFirebaseId = null;
+};
+
+// ===================== DASHBOARD =====================
+function renderDashboard() {
+  const total = registros.length;
+  const aldia = registros.filter(r => getEstadoRegistro(r) === 'al-dia').length;
+  const proximo = registros.filter(r => getEstadoRegistro(r) === 'proximo').length;
+  const vencido = registros.filter(r => getEstadoRegistro(r) === 'vencido').length;
+  const pagado = registros.filter(r => getEstadoRegistro(r) === 'pagado').length;
+  const recaudado = registros.reduce((s,r) => s + r.cuotas.filter(c=>c.pagada).reduce((s2,c)=>s2+c.monto,0), 0);
+  const porRecaudar = registros.reduce((s,r) => s + r.cuotas.filter(c=>!c.pagada).reduce((s2,c)=>s2+c.monto,0), 0);
+
+  document.getElementById('stat-total').textContent = total;
+  document.getElementById('stat-aldia').textContent = aldia;
+  document.getElementById('stat-proximo').textContent = proximo;
+  document.getElementById('stat-vencido').textContent = vencido;
+  document.getElementById('stat-completados').textContent = pagado;
+  document.getElementById('stat-recaudado').textContent = `$${recaudado.toFixed(0)}`;
+  document.getElementById('stat-porrecaudar').textContent = `$${porRecaudar.toFixed(0)}`;
+
+  const hoy = new Date();
+  const mesActual = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}`;
+  const pagosMes = [];
+  registros.forEach(r => {
+    r.cuotas.forEach(c => {
+      if (c.fechaLimite && c.fechaLimite.startsWith(mesActual)) pagosMes.push({ reg: r, cuota: c });
+    });
+  });
+
+  const pmContainer = document.getElementById('pagos-mes');
+  if (pagosMes.length === 0) {
+    pmContainer.innerHTML = `<div class="empty-state" style="padding:20px;"><div class="empty-emoji">📭</div><div class="empty-title">Sin pagos este mes</div></div>`;
+  } else {
+    const chipMap2 = {
+      pagada: '<span class="status-chip chip-verde">✅ Pagada</span>',
+      atrasada: '<span class="status-chip chip-rojo">🔴 Atrasada</span>',
+      'pendiente-hoy': '<span class="status-chip chip-naranja">⚠️ Por vencer</span>',
+      pendiente: '<span class="status-chip chip-gris">⏳ Pendiente</span>'
+    };
+    pmContainer.innerHTML = `<div class="table-wrap"><table>
+      <thead><tr><th>#</th><th>Nombre</th><th>Cuota</th><th>Límite</th><th>Pago Real</th><th>Estado</th></tr></thead>
+      <tbody>${pagosMes.map(({reg,cuota}) => {
+        const est = getEstadoCuota(cuota);
+        return `<tr>
+          <td>#${String(reg.numSocio).padStart(2,'0')}</td>
+          <td>${reg.nombre}</td>
+          <td>C${cuota.num} · $${cuota.monto}</td>
+          <td>${formatDate(cuota.fechaLimite)}</td>
+          <td>${cuota.pagada ? formatDate(cuota.fechaPago) : '—'}</td>
+          <td>${chipMap2[est]}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>`;
+  }
+
+  const tbody = document.getElementById('tbody-resumen');
+  if (registros.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--empty-text);padding:20px;">Sin registros</td></tr>`;
+    return;
+  }
+  const sorted = [...registros].sort((a,b) => a.numSocio - b.numSocio);
+  const chipMap3 = {
+    'al-dia':'<span class="status-chip chip-verde">✅ Al día</span>',
+    'proximo':'<span class="status-chip chip-naranja">⚠️ Por vencer</span>',
+    'vencido':'<span class="status-chip chip-rojo">🔴 Vencido</span>',
+    'pagado':'<span class="status-chip chip-dorado">💚 Completo</span>'
+  };
+  tbody.innerHTML = sorted.map(r => {
+    const totalPagado = r.cuotas.filter(c=>c.pagada).reduce((s,c)=>s+c.monto,0);
+    return `<tr>
+      <td>#${String(r.numSocio).padStart(2,'0')}</td>
+      <td>${r.nombre}</td>
+      <td>${r.cedula}</td>
+      <td>$${r.monto}</td>
+      <td>${formatDate(r.fechaRetiro)}</td>
+      <td>${formatDate(r.fechaLimite)}</td>
+      <td>${r.cuotas.filter(c=>c.pagada).length}/6</td>
+      <td>$${totalPagado.toFixed(0)}/$${r.totalPagar}</td>
+      <td>${chipMap3[getEstadoRegistro(r)]}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ===================== SEMANA =====================
+function renderSemana() {
+  const hoy = today();
+  const en7 = addDays(hoy, 7);
+  const proximos = [];
+  registros.forEach(r => {
+    r.cuotas.forEach(c => {
+      if (!c.pagada && c.fechaLimite >= hoy && c.fechaLimite <= en7) {
+        proximos.push({ reg: r, cuota: c });
+      }
+    });
+  });
+  proximos.sort((a,b) => a.cuota.fechaLimite.localeCompare(b.cuota.fechaLimite));
+
+  const atrasados = [];
+  registros.forEach(r => {
+    r.cuotas.forEach(c => {
+      if (!c.pagada && c.fechaLimite < hoy) atrasados.push({ reg: r, cuota: c });
+    });
+  });
+
+  const container = document.getElementById('semana-content');
+  let html = '';
+
+  if (atrasados.length > 0) {
+    html += `<div class="glass-card" style="border-left:4px solid var(--red);margin-bottom:16px;">
+      <div class="card-title" style="color:var(--red);margin-bottom:12px;">🔴 Pagos Atrasados (${atrasados.length})</div>
+      ${atrasados.map(({reg,cuota}) => {
+        const dias = Math.abs(daysBetween(hoy, cuota.fechaLimite));
+        return `<div class="semana-item">
+          <div class="semana-socio">#${String(reg.numSocio).padStart(2,'0')} ${reg.nombre}</div>
+          <div class="semana-info">Cuota ${cuota.num} · $${cuota.monto} · Límite: ${formatDate(cuota.fechaLimite)}</div>
+          <span class="status-chip chip-rojo">${dias} días de atraso</span>
+          <button class="btn btn-primary btn-sm" onclick="abrirCuotas('${reg.firebaseId}')">💳 Registrar</button>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+
+  if (proximos.length > 0) {
+    html += `<div class="glass-card">
+      <div class="card-title" style="margin-bottom:12px;">📅 Vencen esta semana (${proximos.length})</div>
+      ${proximos.map(({reg,cuota}) => {
+        const dias = daysBetween(hoy, cuota.fechaLimite);
+        const color = dias <= 2 ? 'chip-rojo' : dias <= 4 ? 'chip-naranja' : 'chip-gris';
+        return `<div class="semana-item">
+          <div class="semana-socio">#${String(reg.numSocio).padStart(2,'0')} ${reg.nombre}</div>
+          <div class="semana-info">Cuota ${cuota.num} · $${cuota.monto} · Vence: ${formatDate(cuota.fechaLimite)}</div>
+          <span class="status-chip ${color}">En ${dias} día${dias!==1?'s':''}</span>
+          <button class="btn btn-primary btn-sm" onclick="abrirCuotas('${reg.firebaseId}')">💳 Registrar</button>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+
+  if (proximos.length === 0 && atrasados.length === 0) {
+    html = `<div class="empty-state"><div class="empty-emoji">🎉</div><div class="empty-title">¡Todo al día!</div><div class="empty-sub">No hay pagos urgentes esta semana</div></div>`;
+  }
+
+  container.innerHTML = html;
+}
+
+// ===================== EXCEL =====================
+window.exportarExcel = function() {
+  if (registros.length === 0) { showToast('No hay registros para exportar', '⚠️'); return; }
+  const wb = XLSX.utils.book_new();
+  const resumen = registros.sort((a,b)=>a.numSocio-b.numSocio).map(r => ({
+    'N° Socio': r.numSocio, 'Nombre': r.nombre, 'Cédula': r.cedula,
+    'Monto Préstamo': r.monto, 'Total a Pagar': r.totalPagar,
+    'Fecha Retiro': formatDate(r.fechaRetiro), 'Fecha 1ª Cuota Máx': formatDate(r.fechaLimite),
+    'Cuotas Pagadas': r.cuotas.filter(c=>c.pagada).length, 'Total Cuotas': 6,
+    'Valor Cuota': r.cuotas[0]?.monto || 55,
+    'Total Pagado': r.cuotas.filter(c=>c.pagada).reduce((s,c)=>s+c.monto,0).toFixed(2),
+    'Saldo Pendiente': r.cuotas.filter(c=>!c.pagada).reduce((s,c)=>s+c.monto,0).toFixed(2),
+    'Estado': getEstadoRegistro(r), 'Observaciones': r.obs || ''
+  }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resumen), 'Resumen');
+
+  const detalle = [];
+  registros.forEach(r => {
+    r.cuotas.forEach(c => {
+      detalle.push({
+        'N° Socio': r.numSocio, 'Nombre': r.nombre, 'Cédula': r.cedula,
+        'Cuota N°': c.num, 'Monto Cuota': c.monto,
+        'Fecha Límite': formatDate(c.fechaLimite),
+        'Pagada': c.pagada ? 'SÍ' : 'NO',
+        'Fecha Real de Pago': c.fechaPago ? formatDate(c.fechaPago) : '—',
+        'Estado': getEstadoCuota(c)
+      });
+    });
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(detalle), 'Detalle Cuotas');
+  XLSX.writeFile(wb, `CoopTaxi14_${today().replace(/-/g,'')}.xlsx`);
+  showToast('Excel exportado correctamente', '📊');
+};
+
+// ===================== INIT =====================
+function init() {
+  const now = new Date();
+  const opts = { weekday:'short', day:'numeric', month:'short', year:'numeric' };
+  document.getElementById('dateBadge').textContent = now.toLocaleDateString('es-ES', opts);
+  document.getElementById('inp-fechaRetiro').value = today();
+  calcularFechas();
+  if (localStorage.getItem('darkmode') === '1') document.body.classList.add('dark-mode');
+}
+
+document.getElementById('modal-cuotas').addEventListener('click', function(e){ if(e.target===this) cerrarModal(); });
+document.getElementById('modal-del').addEventListener('click', function(e){ if(e.target===this) cerrarModalDel(); });
+document.getElementById('login-email').addEventListener('keydown', e => { if(e.key==='Enter') loginUser(); });
+document.getElementById('login-pass').addEventListener('keydown', e => { if(e.key==='Enter') loginUser(); });
+
+init();
+</script>
+
+<style>
+:root {
+  --coop-green: #1a6b2f;
+  --coop-green-light: #2d8a47;
+  --coop-green-dark: #0f4a20;
+  --coop-gold: #c9a84c;
+  --coop-gold-light: #e8c76a;
+  --bg-color: #0d1f12;
+  --bg2: #111f15;
+  --text-color: #e8f5e9;
+  --grid-dot: #1e3a24;
+  --glass-bg: rgba(15,35,20,0.75);
+  --glass-border: 1px solid rgba(45,138,71,0.2);
+  --shadow-soft: 0 8px 32px 0 rgba(0,0,0,0.4);
+  --accent-color: #2d8a47;
+  --btn-bg: #1a3020;
+  --btn-text: #e8f5e9;
+  --modal-bg: rgba(10,25,14,0.98);
+  --input-bg: #0f2014;
+  --empty-text: #4a7a56;
+  --tape-color: rgba(201,168,76,0.2);
+  --surface: rgba(20,45,28,0.8);
+  --border-light: rgba(45,138,71,0.25);
+  --green: #34d399;
+  --red: #f87171;
+  --orange: #fbbf24;
+  --blue: #60a5fa;
+  --gold: #c9a84c;
+}
+.dark-mode {
+  --bg-color: #060e08;
+  --bg2: #0a1a0d;
+  --glass-bg: rgba(8,20,11,0.8);
+  --input-bg: #081209;
+  --surface: rgba(12,28,16,0.9);
+}
+
+@keyframes popIn {
+  0% { transform: scale(0.4) rotate(-5deg); opacity: 0; }
+  65% { transform: scale(1.08) rotate(1deg); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes headerIn {
+  from { opacity: 0; transform: translateY(-18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes tabIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes shake {
+  0%,100% { transform: translateX(0); }
+  20% { transform: translateX(-8px); }
+  40% { transform: translateX(8px); }
+  60% { transform: translateX(-5px); }
+  80% { transform: translateX(5px); }
+}
+@keyframes pulse {
+  0%,100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+@keyframes loginIn {
+  from { opacity: 0; transform: translateY(30px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes goldShimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+*,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  font-family: 'Nunito', sans-serif;
+  background-color: var(--bg-color);
+  background-image:
+    radial-gradient(circle at 20% 20%, rgba(26,107,47,0.15) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(201,168,76,0.08) 0%, transparent 50%),
+    radial-gradient(var(--grid-dot) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 28px 28px;
+  color: var(--text-color);
+  min-height: 100vh;
+  overflow-x: hidden;
+  transition: background-color 0.4s, color 0.3s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(45,138,71,0.3); border-radius: 6px; }
+
+/* ============ LOADER ============ */
+#loader {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+  display: none; align-items: center; justify-content: center;
+  z-index: 9999; backdrop-filter: blur(4px);
+}
+.loader-spin {
+  width: 48px; height: 48px; border-radius: 50%;
+  border: 4px solid rgba(45,138,71,0.2);
+  border-top-color: var(--coop-green-light);
+  animation: spin 0.8s linear infinite;
+}
+
+/* ============ LOGIN SCREEN ============ */
+#login-screen {
+  position: fixed; inset: 0; z-index: 800;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #060e08 0%, #0d1f12 40%, #0a1a06 100%);
+  padding: 20px;
+}
+#login-screen::before {
+  content: '';
+  position: absolute; inset: 0;
+  background-image: radial-gradient(circle at 30% 30%, rgba(26,107,47,0.2) 0%, transparent 60%),
+    radial-gradient(circle at 70% 70%, rgba(201,168,76,0.1) 0%, transparent 60%);
+}
+.login-card {
+  background: rgba(10,25,14,0.95);
+  border: 1px solid rgba(45,138,71,0.3);
+  border-radius: 28px; padding: 36px 32px;
+  max-width: 400px; width: 100%;
+  box-shadow: 0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,168,76,0.1);
+  animation: loginIn 0.6s cubic-bezier(.175,.885,.32,1.275) forwards;
+  position: relative; z-index: 1;
+}
+.login-logo-wrap { text-align: center; margin-bottom: 20px; }
+.login-logo-circle {
+  width: 90px; height: 90px; border-radius: 50%;
+  background: linear-gradient(135deg, #1a6b2f, #2d8a47);
+  border: 3px solid var(--coop-gold);
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 12px; font-size: 2.8rem;
+  box-shadow: 0 8px 32px rgba(26,107,47,0.4), 0 0 0 8px rgba(201,168,76,0.08);
+}
+.login-coop-name {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.1rem; font-weight: 700;
+  background: linear-gradient(135deg, #c9a84c, #e8c76a, #c9a84c);
+  background-size: 200% auto;
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: goldShimmer 3s linear infinite;
+  line-height: 1.3;
+}
+.login-subtitle {
+  font-size: 0.75rem; font-weight: 700;
+  color: var(--coop-green-light); text-transform: uppercase;
+  letter-spacing: 2px; margin-top: 6px;
+}
+.login-divider {
+  height: 1px; background: linear-gradient(90deg, transparent, rgba(45,138,71,0.4), transparent);
+  margin: 20px 0;
+}
+.login-error {
+  background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.3);
+  border-radius: 10px; padding: 10px 14px;
+  font-size: 0.82rem; font-weight: 700; color: var(--red);
+  display: none; margin-bottom: 12px;
+}
+.login-btn {
+  width: 100%; padding: 14px; border-radius: 14px; border: none;
+  background: linear-gradient(135deg, #1a6b2f, #2d8a47);
+  color: white; font-family: 'Nunito', sans-serif;
+  font-size: 1rem; font-weight: 800; cursor: pointer;
+  box-shadow: 0 6px 20px rgba(26,107,47,0.4);
+  transition: all 0.2s; margin-top: 6px;
+}
+.login-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(26,107,47,0.5); }
+.login-btn:active { transform: scale(0.97); }
+.login-note {
+  text-align: center; font-size: 0.72rem; font-weight: 700;
+  color: var(--empty-text); margin-top: 16px;
+}
+
+/* ============ APP SCREEN ============ */
+#app-screen {
+  display: none; flex-direction: column; min-height: 100vh;
+}
+
+/* ============ HEADER ============ */
+header {
+  padding: 10px 16px;
+  display: grid; grid-template-columns: auto 1fr auto;
+  align-items: center; gap: 10px;
+  background: rgba(10,25,14,0.9);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(45,138,71,0.25);
+  position: sticky; top: 0; z-index: 500;
+  box-shadow: 0 2px 20px rgba(0,0,0,0.3);
+  animation: headerIn 0.5s ease forwards;
+}
+.header-left { display: flex; align-items: center; gap: 10px; }
+.logo-taxi { font-size: 1.8rem; }
+.logo-wrap { display: flex; flex-direction: column; }
+.logo {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.2rem; font-weight: 900; line-height: 1;
+  background: linear-gradient(135deg, #c9a84c, #e8c76a, #c9a84c);
+  background-size: 200% auto;
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: goldShimmer 4s linear infinite;
+}
+.logo-sub {
+  font-size: 0.6rem; font-weight: 800; color: var(--coop-green-light);
+  text-transform: uppercase; letter-spacing: 1.5px; margin-top: 1px;
+}
+.header-center { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; }
+.header-right { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+
+.alert-venc {
+  background: rgba(248,113,113,0.12); border: 1px solid rgba(248,113,113,0.35);
+  border-radius: 10px; padding: 4px 10px;
+  font-size: 0.72rem; font-weight: 800; color: var(--red);
+  display: none; white-space: nowrap; cursor: pointer;
+  animation: pulse 1.6s ease infinite;
+}
+.date-badge {
+  font-size: 0.72rem; font-weight: 800;
+  background: rgba(45,138,71,0.15); border: 1px solid rgba(45,138,71,0.3);
+  color: var(--coop-green-light); padding: 4px 10px; border-radius: 20px; white-space: nowrap;
+}
+.ctrl-btn {
+  padding: 6px 12px; border-radius: 10px; border: 1px solid rgba(45,138,71,0.3);
+  background: var(--btn-bg); color: var(--btn-text);
+  cursor: pointer; font-family: 'Nunito', sans-serif;
+  font-size: 0.78rem; font-weight: 700; outline: none;
+  transition: transform 0.15s, box-shadow 0.2s;
+  white-space: nowrap;
+}
+.ctrl-btn:hover { transform: translateY(-2px); }
+.user-chip {
+  font-size: 0.68rem; font-weight: 800; color: var(--empty-text);
+  max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ============ TABS ============ */
+.tabs-nav {
+  display: flex; justify-content: center; gap: 6px;
+  padding: 12px 16px 0; flex-wrap: wrap;
+  background: rgba(10,25,14,0.5);
+}
+.tab-btn {
+  padding: 8px 16px; border-radius: 30px;
+  border: 1.5px solid var(--border-light);
+  background: var(--glass-bg); color: var(--text-color);
+  cursor: pointer; font-family: 'Nunito', sans-serif;
+  font-size: 0.8rem; font-weight: 800; outline: none;
+  backdrop-filter: blur(10px); transition: all 0.25s; white-space: nowrap;
+  display: flex; align-items: center; gap: 5px;
+}
+.tab-btn:hover { transform: translateY(-2px); }
+.tab-btn.active {
+  background: linear-gradient(135deg, #1a6b2f, #2d8a47);
+  color: white; border-color: transparent;
+  box-shadow: 0 6px 20px rgba(26,107,47,0.4);
+}
+.tab-badge {
+  background: rgba(201,168,76,0.3); color: var(--gold);
+  font-size: 0.65rem; font-weight: 900;
+  padding: 1px 6px; border-radius: 10px;
+}
+.tab-btn.active .tab-badge { background: rgba(255,255,255,0.25); color: white; }
+
+/* ============ CONTENT ============ */
+.content-area {
+  flex: 1; padding: 14px 16px 80px;
+  max-width: 1100px; margin: 0 auto; width: 100%;
+}
+.tab-panel { display: none; animation: tabIn 0.35s ease; }
+.tab-panel.active { display: block; }
+
+/* ============ GLASS CARD ============ */
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border: var(--glass-border); border-radius: 20px;
+  box-shadow: var(--shadow-soft); padding: 20px; margin-bottom: 16px;
+  transition: background 0.4s;
+}
+.card-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 16px; flex-wrap: wrap; gap: 8px;
+}
+.card-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.4rem; color: var(--coop-gold);
+  display: flex; align-items: center; gap: 8px;
+}
+.card-subtitle { font-size: 0.72rem; font-weight: 700; color: var(--empty-text); text-transform: uppercase; letter-spacing: 1px; }
+
+/* ============ FIELDS ============ */
+.field-group { margin-bottom: 14px; }
+.field-label {
+  display: block; font-size: 0.7rem; font-weight: 800;
+  color: var(--empty-text); text-transform: uppercase;
+  letter-spacing: 1.2px; margin-bottom: 6px; margin-left: 4px;
+}
+.field-input {
+  width: 100%; padding: 11px 16px;
+  border-radius: 12px; border: 1.5px solid rgba(45,138,71,0.25);
+  background: var(--input-bg); color: var(--text-color);
+  font-family: 'Nunito', sans-serif; font-size: 0.95rem; font-weight: 700; outline: none;
+  transition: all 0.25s; -webkit-appearance: none; appearance: none;
+}
+.field-input:focus { border-color: var(--coop-green-light); box-shadow: 0 0 0 3px rgba(45,138,71,0.15); }
+.field-input::placeholder { color: var(--empty-text); font-weight: 600; }
+select.field-input {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%234a7a56' stroke-width='3'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px; cursor: pointer;
+}
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+@media(max-width:600px){ .grid-2,.grid-3 { grid-template-columns: 1fr; } }
+
+/* ============ MONTO SELECTOR ============ */
+.monto-options { display: flex; gap: 10px; margin-top: 4px; }
+.monto-opt {
+  flex: 1; padding: 14px 10px; border-radius: 14px;
+  border: 2px solid var(--border-light); background: var(--surface);
+  cursor: pointer; transition: all 0.22s; text-align: center; user-select: none;
+}
+.monto-opt:hover { transform: translateY(-2px); }
+.monto-opt.selected {
+  border-color: var(--coop-gold);
+  background: rgba(201,168,76,0.08);
+  box-shadow: 0 4px 14px rgba(201,168,76,0.2);
+}
+.monto-opt .monto-value {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.5rem; font-weight: 900; color: var(--coop-gold);
+}
+.monto-opt .monto-label { font-size: 0.62rem; font-weight: 800; color: var(--empty-text); text-transform: uppercase; letter-spacing: 1px; margin-top: 2px; }
+.monto-opt .monto-total { font-size: 0.72rem; font-weight: 700; color: var(--green); margin-top: 4px; }
+
+/* ============ BUTTONS ============ */
+.btn {
+  padding: 11px 22px; border-radius: 30px; border: none;
+  font-family: 'Nunito', sans-serif; font-size: 0.88rem; font-weight: 800;
+  cursor: pointer; transition: all 0.2s; outline: none;
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.btn:active { transform: scale(0.95); }
+.btn-primary { background: linear-gradient(135deg, #1a6b2f, #2d8a47); color: white; box-shadow: 0 6px 18px rgba(26,107,47,0.35); }
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(26,107,47,0.45); }
+.btn-green { background: linear-gradient(135deg, #059669, #047857); color: white; }
+.btn-edit { background: rgba(201,168,76,0.15); color: var(--coop-gold); border: 1.5px solid rgba(201,168,76,0.3); }
+.btn-edit:hover { background: rgba(201,168,76,0.25); }
+.btn-red { background: linear-gradient(135deg, #ef4444, #dc2626); color: white; box-shadow: 0 4px 14px rgba(239,68,68,0.25); }
+.btn-ghost { background: var(--surface); color: var(--text-color); border: 1.5px solid var(--border-light); }
+.btn-ghost:hover { transform: translateY(-2px); }
+.btn-sm { padding: 6px 12px; font-size: 0.76rem; border-radius: 20px; }
+.btn-full { width: 100%; justify-content: center; }
+.btn-cancel { background: rgba(248,113,113,0.1); color: var(--red); border: 1.5px solid rgba(248,113,113,0.3); }
+
+/* ============ INFO BOX ============ */
+.info-box {
+  border-radius: 12px; padding: 10px 14px;
+  font-size: 0.82rem; font-weight: 700;
+  display: flex; align-items: flex-start; gap: 10px; margin-top: 10px;
+}
+.info-box-blue { background: rgba(96,165,250,0.08); border: 1px solid rgba(96,165,250,0.2); color: var(--blue); }
+.info-box-green { background: rgba(52,211,153,0.08); border: 1px solid rgba(52,211,153,0.2); color: var(--green); }
+.info-box-orange { background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.2); color: var(--orange); }
+
+/* ============ REG CARD ============ */
+.reg-card {
+  padding: 16px; border-radius: 18px;
+  border: 1.5px solid var(--border-light); background: var(--surface);
+  position: relative; margin-bottom: 12px;
+  transition: transform 0.2s, box-shadow 0.2s;
+  animation: fadeSlideUp 0.35s ease;
+}
+.reg-card::before {
+  content: ''; position: absolute; top: -9px; left: 50%;
+  transform: translateX(-50%);
+  width: 60px; height: 18px;
+  background: var(--tape-color); border-radius: 3px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+}
+.reg-card:hover { transform: translateY(-3px); box-shadow: 0 12px 30px rgba(0,0,0,0.3); }
+.reg-card.al-dia { border-color: rgba(52,211,153,0.3); }
+.reg-card.proximo { border-color: rgba(251,191,36,0.35); }
+.reg-card.vencido { border-color: rgba(248,113,113,0.35); }
+.reg-card.pagado { border-color: rgba(201,168,76,0.4); background: rgba(201,168,76,0.04); }
+
+.reg-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
+.reg-left-info {}
+.reg-socio-num {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.8rem; color: var(--coop-gold); line-height: 1;
+}
+.reg-socio-name { font-weight: 800; font-size: 1rem; line-height: 1.3; margin-top: 2px; }
+.reg-cedula { font-size: 0.72rem; font-weight: 700; color: var(--empty-text); }
+.reg-right { text-align: right; }
+.reg-monto { font-family: 'Playfair Display', serif; font-size: 1.5rem; font-weight: 900; color: var(--green); }
+.reg-cuota { font-size: 0.68rem; font-weight: 800; color: var(--empty-text); margin-top: 2px; }
+.reg-pagado-label { font-size: 0.72rem; font-weight: 700; color: var(--coop-green-light); margin-top: 4px; }
+
+/* Progress bar */
+.progress-wrap { margin-top: 12px; }
+.progress-bar { height: 8px; border-radius: 4px; background: rgba(45,138,71,0.15); overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, #1a6b2f, #34d399); transition: width 0.5s ease; }
+.progress-label { font-size: 0.68rem; font-weight: 800; color: var(--empty-text); margin-top: 4px; text-align: right; }
+
+/* Cuotas dots */
+.cuotas-track { display: flex; gap: 4px; align-items: center; margin-top: 10px; }
+.cuota-dot {
+  flex: 1; height: 10px; border-radius: 5px;
+  background: var(--border-light); transition: background 0.3s; cursor: pointer;
+  position: relative;
+}
+.cuota-dot.pagada { background: linear-gradient(135deg,#1a6b2f,#34d399); }
+.cuota-dot.pendiente-hoy { background: linear-gradient(135deg,#f59e0b,#d97706); }
+.cuota-dot.atrasada { background: linear-gradient(135deg,#ef4444,#dc2626); }
+
+/* Pagos registrados */
+.pagos-registrados {
+  margin-top: 10px; padding: 10px 12px;
+  background: rgba(26,107,47,0.08); border: 1px solid rgba(26,107,47,0.2);
+  border-radius: 12px;
+}
+.pagos-title { font-size: 0.68rem; font-weight: 800; color: var(--coop-green-light); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+.cuota-pago-item {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 0.75rem; font-weight: 700; padding: 3px 0;
+  border-bottom: 1px solid rgba(45,138,71,0.1);
+  flex-wrap: wrap;
+}
+.cuota-pago-item:last-child { border-bottom: none; }
+.cuota-num-mini {
+  width: 20px; height: 20px; border-radius: 50%;
+  background: linear-gradient(135deg,#1a6b2f,#2d8a47);
+  color: white; display: flex; align-items: center; justify-content: center;
+  font-size: 0.65rem; font-weight: 900; flex-shrink: 0;
+}
+.cuota-fecha-pago { color: var(--coop-green-light); font-size: 0.72rem; flex: 1; }
+.cuota-monto-mini { color: var(--green); font-weight: 900; }
+
+.reg-dates {
+  display: flex; gap: 12px; margin-top: 12px; flex-wrap: wrap;
+  padding-top: 10px; border-top: 1px solid var(--border-light);
+}
+.reg-date-item { flex: 1; min-width: 100px; }
+.reg-date-label { font-size: 0.6rem; font-weight: 800; color: var(--empty-text); text-transform: uppercase; letter-spacing: 1px; }
+.reg-date-value { font-size: 0.88rem; font-weight: 800; margin-top: 2px; }
+
+.reg-status-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 12px; flex-wrap: wrap; gap: 8px;
+}
+.reg-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.reg-obs { margin-top: 8px; font-size: 0.75rem; color: var(--empty-text); font-weight: 700; }
+
+/* ============ STATUS CHIPS ============ */
+.status-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 10px; border-radius: 20px;
+  font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px;
+}
+.chip-verde { background: rgba(52,211,153,0.1); color: var(--green); }
+.chip-naranja { background: rgba(251,191,36,0.1); color: var(--orange); }
+.chip-rojo { background: rgba(248,113,113,0.1); color: var(--red); }
+.chip-gris { background: rgba(74,122,86,0.15); color: var(--empty-text); }
+.chip-dorado { background: rgba(201,168,76,0.1); color: var(--gold); }
+
+/* ============ STATS ============ */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(130px,1fr)); gap: 10px; margin-bottom: 16px; }
+.stat-card {
+  background: var(--glass-bg); border: var(--glass-border);
+  border-radius: 16px; padding: 14px 16px; text-align: center;
+  box-shadow: var(--shadow-soft);
+}
+.stat-val {
+  font-family: 'Playfair Display', serif;
+  font-size: 2rem; font-weight: 900;
+  background: linear-gradient(135deg,#c9a84c,#e8c76a);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.stat-val.green-val { background: linear-gradient(135deg,#34d399,#059669); -webkit-background-clip: text; background-clip: text; }
+.stat-val.orange-val { background: linear-gradient(135deg,#fbbf24,#d97706); -webkit-background-clip: text; background-clip: text; }
+.stat-val.red-val { background: linear-gradient(135deg,#f87171,#dc2626); -webkit-background-clip: text; background-clip: text; }
+.stat-lbl { font-size: 0.62rem; font-weight: 800; color: var(--empty-text); text-transform: uppercase; letter-spacing: 0.8px; margin-top: 4px; }
+
+/* ============ FILTER BAR ============ */
+.filter-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
+.filter-chip {
+  padding: 5px 12px; border-radius: 20px; border: 1.5px solid var(--border-light);
+  background: var(--glass-bg); color: var(--text-color);
+  cursor: pointer; font-family: 'Nunito', sans-serif; font-size: 0.76rem; font-weight: 800; outline: none;
+  transition: all 0.2s;
+}
+.filter-chip:hover { transform: translateY(-1px); }
+.filter-chip.active { background: var(--coop-green); color: white; border-color: var(--coop-green); }
+.search-input {
+  flex: 1; min-width: 180px; padding: 7px 14px;
+  border-radius: 20px; border: 1.5px solid var(--border-light);
+  background: var(--glass-bg); color: var(--text-color);
+  font-family: 'Nunito', sans-serif; font-size: 0.85rem; font-weight: 700; outline: none;
+  transition: all 0.25s;
+}
+.search-input:focus { border-color: var(--coop-green-light); }
+
+/* ============ MODAL ============ */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(8px); z-index: 900;
+  display: none; align-items: center; justify-content: center; padding: 16px;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--modal-bg); border-radius: 24px;
+  max-width: 480px; width: 100%; max-height: 90vh; overflow-y: auto;
+  padding: 24px; box-shadow: 0 24px 80px rgba(0,0,0,0.5);
+  border: 1px solid rgba(45,138,71,0.2);
+  animation: popIn 0.4s cubic-bezier(.175,.885,.32,1.275) forwards;
+  position: relative;
+}
+.modal-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.4rem; color: var(--coop-gold);
+  margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
+}
+.modal-close {
+  position: absolute; top: 16px; right: 16px;
+  background: none; border: none; font-size: 1.4rem;
+  cursor: pointer; color: var(--empty-text); line-height: 1;
+}
+
+/* ============ CUOTA ITEMS ============ */
+.cuotas-list { display: flex; flex-direction: column; gap: 8px; }
+.cuota-item {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 12px 14px; border-radius: 12px;
+  border: 1.5px solid var(--border-light); background: var(--surface);
+}
+.cuota-item.cuota-pagada { border-color: rgba(52,211,153,0.3); background: rgba(52,211,153,0.04); }
+.cuota-num {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: linear-gradient(135deg,#1a6b2f,#2d8a47);
+  color: white; display: flex; align-items: center; justify-content: center;
+  font-size: 0.75rem; font-weight: 900; flex-shrink: 0;
+}
+.cuota-info { flex: 1; }
+.cuota-fecha { font-size: 0.82rem; font-weight: 800; }
+.cuota-fecha-real { font-size: 0.72rem; font-weight: 800; color: var(--green); margin-top: 4px; }
+.cuota-monto { font-weight: 900; font-size: 0.9rem; color: var(--green); white-space: nowrap; }
+
+/* ============ SEMANA ============ */
+.semana-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 0; border-bottom: 1px solid var(--border-light);
+  flex-wrap: wrap;
+}
+.semana-item:last-child { border-bottom: none; }
+.semana-socio { font-weight: 800; font-size: 0.9rem; flex: 1; min-width: 150px; }
+.semana-info { font-size: 0.75rem; font-weight: 700; color: var(--empty-text); width: 100%; }
+
+/* ============ TABLE ============ */
+.table-wrap { overflow-x: auto; border-radius: 14px; }
+table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+th {
+  background: var(--surface); padding: 10px 12px;
+  font-weight: 800; text-align: left;
+  border-bottom: 2px solid var(--border-light);
+  font-size: 0.68rem; text-transform: uppercase; letter-spacing: 1px; color: var(--empty-text);
+}
+td { padding: 10px 12px; border-bottom: 1px solid var(--border-light); font-weight: 700; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(45,138,71,0.05); }
+
+/* ============ EMPTY ============ */
+.empty-state { text-align: center; padding: 40px 20px; color: var(--empty-text); }
+.empty-emoji { font-size: 3.5rem; margin-bottom: 10px; }
+.empty-title { font-size: 1.1rem; font-weight: 800; margin-bottom: 6px; }
+.empty-sub { font-size: 0.82rem; font-weight: 600; }
+
+/* ============ TOAST ============ */
+.toast {
+  position: fixed; bottom: 24px; left: 50%;
+  transform: translateX(-50%) translateY(100px);
+  background: var(--modal-bg); border: 1px solid rgba(45,138,71,0.3);
+  border-radius: 16px; padding: 12px 22px; z-index: 9999;
+  font-size: 0.88rem; font-weight: 800;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+  transition: transform 0.4s cubic-bezier(.175,.885,.32,1.275), opacity 0.3s;
+  opacity: 0; display: flex; align-items: center; gap: 10px; white-space: nowrap;
+}
+.toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+/* ============ MOBILE NAV ============ */
+@media(max-width:640px){
+  .tabs-nav { 
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: rgba(10,25,14,0.95); backdrop-filter: blur(20px);
+    border-top: 1px solid rgba(45,138,71,0.2);
+    padding: 8px 8px 16px; z-index: 400;
+    justify-content: space-around;
+  }
+  .tab-btn { padding: 6px 10px; font-size: 0.72rem; flex-direction: column; gap: 2px; border-radius: 12px; }
+  .content-area { padding-bottom: 100px; }
+  .logo { font-size: 1rem; }
+  .logo-sub { display: none; }
+}
+
+@media(max-width:480px){
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+  .modal { padding: 16px; }
+  .glass-card { padding: 14px; }
+}
+</style>
+</head>
+<body>
+
+<!-- LOADER -->
+<div id="loader"><div class="loader-spin"></div></div>
+
+<!-- ===== LOGIN SCREEN ===== -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo-wrap">
+      <div class="login-logo-circle">🚕</div>
+      <div class="login-coop-name">Cooperativa de Taxis<br>Ciudad de Portoviejo N°14</div>
+      <div class="login-subtitle">Sistema de Asistencia Social</div>
+    </div>
+    <div class="login-divider"></div>
+    <div id="login-error" class="login-error"></div>
+    <div class="field-group">
+      <label class="field-label">📧 Correo electrónico</label>
+      <input type="email" class="field-input" id="login-email" placeholder="correo@ejemplo.com" autocomplete="email">
+    </div>
+    <div class="field-group">
+      <label class="field-label">🔐 Contraseña</label>
+      <input type="password" class="field-input" id="login-pass" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="login-btn" id="login-btn" onclick="loginUser()">🔐 Ingresar al Sistema</button>
+    <div class="login-note">🔒 Acceso restringido · Solo personal autorizado</div>
+  </div>
+</div>
+
+<!-- ===== APP SCREEN ===== -->
+<div id="app-screen">
+
+  <!-- HEADER -->
+  <header>
+    <div class="header-left">
+      <span class="logo-taxi">🚕</span>
+      <div class="logo-wrap">
+        <span class="logo">Coop. Taxis N°14</span>
+        <span class="logo-sub">Asistencia Social · Portoviejo</span>
+      </div>
+    </div>
+    <div class="header-center">
+      <span id="alertVenc" class="alert-venc" onclick="switchTab('semana')">🔴 <span id="alertVencCount">0</span> vencidos</span>
+      <span class="date-badge" id="dateBadge"></span>
+    </div>
+    <div class="header-right">
+      <span class="user-chip" id="user-email"></span>
+      <button class="ctrl-btn" onclick="toggleDark()">🌙</button>
+      <button class="ctrl-btn" onclick="exportarExcel()">📊</button>
+      <button class="ctrl-btn" onclick="logoutUser()">🚪</button>
+    </div>
+  </header>
+
+  <!-- TABS -->
+  <div class="tabs-nav">
+    <button class="tab-btn active" onclick="switchTab('nuevo')" id="tab-nuevo">✏️ Nuevo</button>
+    <button class="tab-btn" onclick="switchTab('registros')" id="tab-registros">
+      📋 Registros <span class="tab-badge" id="badge-registros">0</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('semana')" id="tab-semana">
+      📅 Semana <span class="tab-badge" id="badge-vencidos">0</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('dashboard')" id="tab-dashboard">📊 Resumen</button>
+  </div>
+
+  <div class="content-area">
+
+    <!-- ===== NUEVO REGISTRO ===== -->
+    <div class="tab-panel active" id="panel-nuevo">
+      <div class="glass-card">
+        <div class="card-header">
+          <div class="card-title" id="form-title">✏️ Nuevo Registro</div>
+          <div class="card-subtitle">Asistencia Social</div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">💰 Monto del Préstamo</label>
+          <div class="monto-options">
+            <div class="monto-opt selected" onclick="seleccionarMonto(300, this)">
+              <div class="monto-value">$300</div>
+              <div class="monto-label">Monto Máximo</div>
+              <div class="monto-total">Total: $330</div>
+            </div>
+            <div class="monto-opt" onclick="seleccionarMonto(200, this)">
+              <div class="monto-value">$200</div>
+              <div class="monto-label">Monto Menor</div>
+              <div class="monto-total">Total: $220</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-3">
+          <div class="field-group">
+            <label class="field-label">🔢 N° Socio</label>
+            <input type="number" class="field-input" id="inp-numSocio" placeholder="1-61" min="1" max="61">
+          </div>
+          <div class="field-group" style="grid-column:span 2">
+            <label class="field-label">👤 Nombre del Socio</label>
+            <input type="text" class="field-input" id="inp-nombre" placeholder="Nombre completo">
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">🪪 Cédula de Identidad</label>
+          <input type="text" class="field-input" id="inp-cedula" placeholder="1234567890" maxlength="10">
+        </div>
+
+        <div class="grid-2">
+          <div class="field-group">
+            <label class="field-label">📅 Fecha de Retiro del Cheque</label>
+            <input type="date" class="field-input" id="inp-fechaRetiro" onchange="calcularFechas()">
+          </div>
+          <div class="field-group">
+            <label class="field-label">⏰ Fecha Máxima 1ª Cuota</label>
+            <input type="date" class="field-input" id="inp-fechaLimite" readonly style="opacity:0.7;cursor:not-allowed;">
+          </div>
+        </div>
+
+        <div id="info-fechas" class="info-box info-box-green" style="display:none;">
+          <span>📌</span>
+          <div id="info-fechas-text"></div>
+        </div>
+
+        <div class="field-group" style="margin-top:12px;">
+          <label class="field-label">📝 Observaciones (opcional)</label>
+          <input type="text" class="field-input" id="inp-obs" placeholder="Notas adicionales...">
+        </div>
+
+        <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;">
+          <button class="btn btn-primary btn-full" id="btn-guardar" onclick="guardarRegistro()">💾 Guardar Registro</button>
+          <button class="btn btn-cancel btn-sm" id="btn-cancelar-edit" onclick="cancelarEdit()" style="display:none;">✕ Cancelar</button>
+        </div>
+      </div>
+
+      <div class="info-box info-box-blue">
+        <span>📌</span>
+        <div><strong>Reglas:</strong> 30 días + 5 de gracia = 35 días máximo tras el retiro. 6 cuotas de <strong>$55</strong> ($300) o <strong>~$36.67</strong> ($200). Total: $330 o $220.</div>
+      </div>
+    </div>
+
+    <!-- ===== REGISTROS ===== -->
+    <div class="tab-panel" id="panel-registros">
+      <div class="glass-card">
+        <div class="card-header">
+          <div class="card-title">📋 Registros Activos</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" onclick="switchTab('nuevo')">+ Nuevo</button>
+            <button class="btn btn-ghost btn-sm" onclick="exportarExcel()">📊 Excel</button>
+          </div>
+        </div>
+        <div class="filter-bar">
+          <input type="text" class="search-input" id="searchInput" placeholder="🔍 Buscar socio..." oninput="renderRegistros()">
+          <button class="filter-chip active" onclick="setFilter('todos',this)">Todos</button>
+          <button class="filter-chip" onclick="setFilter('al-dia',this)">✅ Al día</button>
+          <button class="filter-chip" onclick="setFilter('proximo',this)">⚠️ Próximos</button>
+          <button class="filter-chip" onclick="setFilter('vencido',this)">🔴 Vencidos</button>
+          <button class="filter-chip" onclick="setFilter('pagado',this)">💚 Completados</button>
+        </div>
+        <div id="lista-registros">
+          <div class="empty-state">
+            <div class="empty-emoji">☁️</div>
+            <div class="empty-title">Cargando registros...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SEMANA ===== -->
+    <div class="tab-panel" id="panel-semana">
+      <div class="glass-card" style="margin-bottom:16px;">
+        <div class="card-title">📅 Agenda Semanal</div>
+        <div class="card-subtitle" style="margin-top:4px;">Pagos atrasados y próximos 7 días</div>
+      </div>
+      <div id="semana-content"></div>
+    </div>
+
+    <!-- ===== DASHBOARD ===== -->
+    <div class="tab-panel" id="panel-dashboard">
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-val" id="stat-total">0</div><div class="stat-lbl">📋 Total</div></div>
+        <div class="stat-card"><div class="stat-val green-val" id="stat-aldia">0</div><div class="stat-lbl">✅ Al Día</div></div>
+        <div class="stat-card"><div class="stat-val orange-val" id="stat-proximo">0</div><div class="stat-lbl">⚠️ Por Vencer</div></div>
+        <div class="stat-card"><div class="stat-val red-val" id="stat-vencido">0</div><div class="stat-lbl">🔴 Vencidos</div></div>
+        <div class="stat-card"><div class="stat-val green-val" id="stat-completados">0</div><div class="stat-lbl">💚 Completados</div></div>
+        <div class="stat-card"><div class="stat-val" id="stat-recaudado">$0</div><div class="stat-lbl">💰 Recaudado</div></div>
+        <div class="stat-card"><div class="stat-val orange-val" id="stat-porrecaudar">$0</div><div class="stat-lbl">⏳ Por Cobrar</div></div>
+      </div>
+
+      <div class="glass-card">
+        <div class="card-header"><div class="card-title">📅 Pagos este mes</div></div>
+        <div id="pagos-mes"></div>
+      </div>
+
+      <div class="glass-card">
+        <div class="card-header">
+          <div class="card-title">📊 Todos los Registros</div>
+          <button class="btn btn-ghost btn-sm" onclick="exportarExcel()">📊 Excel</button>
+        </div>
+        <div class="table-wrap">
+          <table id="tabla-resumen">
+            <thead>
+              <tr>
+                <th>#</th><th>Nombre</th><th>Cédula</th><th>Monto</th>
+                <th>Retiro</th><th>1ª Cuota</th><th>Cuotas</th><th>Pagado</th><th>Estado</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-resumen"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content-area -->
+</div><!-- /app-screen -->
+
+<!-- MODAL CUOTAS -->
+<div class="modal-overlay" id="modal-cuotas">
+  <div class="modal">
+    <button class="modal-close" onclick="cerrarModal()">✕</button>
+    <div class="modal-title" id="modal-cuotas-title">💳 Cuotas</div>
+    <div id="modal-cuotas-body"></div>
+    <div style="margin-top:16px;">
+      <button class="btn btn-primary btn-full" onclick="guardarCuotas()">✅ Guardar Cambios</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL ELIMINAR -->
+<div class="modal-overlay" id="modal-del">
+  <div class="modal" style="max-width:360px;">
+    <div class="modal-title">🗑️ Eliminar Registro</div>
+    <p style="font-size:0.9rem;font-weight:700;margin-bottom:6px;">¿Eliminar el registro de:</p>
+    <p style="font-size:1.1rem;font-weight:900;color:var(--red);margin-bottom:16px;" id="del-nombre"></p>
+    <p style="font-size:0.82rem;color:var(--empty-text);font-weight:700;margin-bottom:16px;">Esta acción eliminará el registro permanentemente de Firebase y no se puede deshacer.</p>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-ghost btn-full" onclick="cerrarModalDel()">Cancelar</button>
+      <button class="btn btn-red btn-full" onclick="confirmarEliminar()">🗑️ Eliminar</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast">
+  <span id="toast-icon">✅</span>
+  <span id="toast-msg"></span>
+</div>
+
+</body>
+</html>
